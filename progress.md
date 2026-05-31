@@ -753,7 +753,7 @@ Zero banlist or profanity triggers.
 - [ ] Thumbnail auto-generation
 - [ ] A/B title testing
 - [ ] TikTok / Reels integration
-- [ ] Web dashboard
+- [ ] Web dashboard → **v1 shipped** (Issues 44–46); v2 approve-from-UI needs separate grill
 - [ ] File YouTube quota-increase audit form
 
 ---
@@ -1070,3 +1070,11 @@ Fix steps: (1) confirm CUDA 12.x toolkit installed; (2) add `CUDA\v12.x\bin` to 
 - [x] `generate_shots()` enforces cumulative 250¢ cap before billing; reuses succeeded `generation_jobs` on retry (0¢ re-bill).
 - [x] Persistent shot cache at `data/ai_gen/{script_id}/`; per-attempt delta check removed from `_generate_clip`.
 - [x] Tests: `tests/test_clip_spend_ceiling.py` (6 tests, fake ledger/client only).
+
+### Web review/calendar dashboard v1 (Issues 44–46) · complete (2026-05-31)
+- [x] **Issue 44** — Walking skeleton: `src/dashboard/` (scanner, pure view-model, FastAPI on `127.0.0.1:8765`, static page, range-aware MP4 endpoint with path guard). Launch: `python -m src.dashboard`.
+- [x] **Issue 45** — Calendar section: view-model `calendar_by_date` (Asia/Singapore bucketing, Review stage color-coding); navigable month grid in static page.
+- [x] **Issue 46** — Uploaded list + status/spend header: YouTube links, live vs scheduled-on-YouTube, stage counts, OpenRouter today/week vs caps, unscripted topic count.
+- [x] Repository read helpers: `list_dashboard_clips()`, `count_topics_by_status()`, `quota_week_total()`.
+- [x] Tests: `tests/test_dashboard_scanner.py` (5), `tests/test_dashboard_view_model.py` (8), `tests/test_dashboard_app.py` (3) — 16 green.
+- [x] Deps: `fastapi`, `uvicorn`, `httpx` added to `requirements.txt`.

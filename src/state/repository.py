@@ -625,6 +625,53 @@ class Repository:
         )
         return (today_total + units) > ceiling
 
+    def quota_week_total(self, *, provider: str | None = None) -> int:
+        """Sum quota units recorded in the last 7 UTC days, optionally by provider."""
+        from datetime import datetime, timedelta, timezone
+
+        today = datetime.now(timezone.utc).date()
+        start = (today - timedelta(days=6)).strftime("%Y-%m-%d")
+        end = today.strftime("%Y-%m-%d")
+        if provider is None:
+            row = self.conn.execute(
+                "SELECT COALESCE(SUM(units), 0) AS s FROM quota_usage "
+                "WHERE date >= ? AND date <= ?",
+                (start, end),
+            ).fetchone()
+        else:
+            row = self.conn.execute(
+                "SELECT COALESCE(SUM(units), 0) AS s FROM quota_usage "
+                "WHERE date >= ? AND date <= ? AND provider=?",
+                (start, end, provider),
+            ).fetchone()
+        return int(row["s"]) if row else 0
+
+    def count_topics_by_status(self, status: str) -> int:
+        """Count topics rows with the given status."""
+        row = self.conn.execute(
+            "SELECT COUNT(*) AS n FROM topics WHERE status=?",
+            (status,),
+        ).fetchone()
+        return int(row["n"]) if row else 0
+
+    def list_dashboard_clips(self) -> list[sqlite3.Row]:
+        """Clips for the read-only dashboard with optional script metadata."""
+        return self.conn.execute(
+            """
+            SELECT
+                c.*,
+                s.title        AS script_title,
+                s.narration    AS script_narration,
+                s.shots_json   AS s_shots_json
+            FROM clips c
+            LEFT JOIN scripts s ON s.script_id = c.script_id
+            WHERE c.content_kind = 'ai_generated'
+               OR c.publish_at_utc IS NOT NULL
+               OR c.youtube_video_id IS NOT NULL
+            ORDER BY c.created_at DESC, c.clip_id ASC
+            """
+        ).fetchall()
+
     # ---- Pivot.6: topics ----
 
     def unscripted_topics(self) -> list[sqlite3.Row]:

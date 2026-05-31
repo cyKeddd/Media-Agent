@@ -6,7 +6,8 @@ where the work is at a glance.
 
 | Date | Session folder | Summary | Next action |
 |---|---|---|---|
-| 2026-05-31 | [web-dashboard-grill](2026-05-31__web-dashboard-grill/handoff.md) | Grill→PRD→Issues for web review/calendar dashboard v1 (read-only); FastAPI + pure view-model; derived Review stage; PRD + Issues 44–46 (no code) | Grab Issue 44 (dashboard skeleton) OR Thu 06-04 ship gate on `NPFJiqmd4ro` |
+| 2026-05-31 | [issues-44-46-dashboard-tdd](2026-05-31__issues-44-46-dashboard-tdd/handoff.md) | TDD Issues 44–46: read-only web dashboard v1 (FastAPI + view-model + 16 tests) | Run `python -m src.dashboard` OR Thu 06-04 ship gate on `NPFJiqmd4ro` |
+| 2026-05-31 | [web-dashboard-grill](2026-05-31__web-dashboard-grill/handoff.md) | Grill→PRD→Issues for web review/calendar dashboard v1 (read-only); FastAPI + pure view-model; derived Review stage; PRD + Issues 44–46 (no code) | *(superseded by 44–46 TDD)* |
 | 2026-05-31 | [issue-43-clip-spend-tdd](2026-05-31__issue-43-clip-spend-tdd/handoff.md) | Issue 43 TDD: cumulative 250¢ per-clip cap + shot reuse on retry | Thu 2026-06-04 ship gate on `NPFJiqmd4ro` |
 | 2026-05-31 | [issues-39-42-tdd](2026-05-31__issues-39-42-tdd/handoff.md) | TDD Issues 39+41; backfill 89 rejected; scheduler XMLs fixed + re-registered; Issue 42 enablement partial | *(superseded by issue-43)* |
 | 2026-05-31 | [steady-state-autonomy-grill](2026-05-31__steady-state-autonomy-grill/handoff.md) | Grill→PRD→Issues for steady-state autonomy; root-caused off-niche clip to 112-topic pre-gate backlog; slot dedup (hybrid→Thu 06-04); stale scheduler XMLs; PRD + Issues 39–42 (no code) | *(superseded by 39–42 TDD)* |

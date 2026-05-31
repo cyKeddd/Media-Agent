@@ -1,7 +1,7 @@
 # Phase: development
 **Project:** Media-Agent (Pivot.6)
 **Status:** in-progress
-**Last updated:** 2026-05-31 (issues-39-42-tdd)
+**Last updated:** 2026-05-31 (issues-44-46-dashboard-tdd)
 
 ## Objective
 
@@ -43,6 +43,7 @@ Implement all 10 slices of the Pivot.6 AI-generated pipeline: RSS ingest → top
 - [2026-05-27] **Issues 30–34 (ADR-0004):** curated feeds, niche gate, significance+HN, Ken Burns fix, doc reconciliation. 55 tests green.
 - [2026-05-31] **Issues 39–42 (steady-state autonomy):** backfill module + live run (89 rejected); scheduler XMLs fixed + re-registered; clips_n regression test; enablement evidence in `progress.md`. Issue 42 partial — ship/stability gates pending.
 - [2026-05-31] **Issue 43:** cumulative per-clip spend ceiling + shot reuse on retry.
+- [2026-05-31] **Issues 44–46 (dashboard v1):** read-only web dashboard — `src/dashboard/` (scanner, view-model, FastAPI, static UI); `python -m src.dashboard` on 127.0.0.1:8765; 16 tests green.
 
 ## Artifacts
 
@@ -61,6 +62,7 @@ Implement all 10 slices of the Pivot.6 AI-generated pipeline: RSS ingest → top
 | Subtitles | `src/subtitles/line_ass.py` | Line-at-a-time ASS writer |
 | Shot gen CLI | `scripts/generate_clip.py` | Ad-hoc clip generation |
 | Backfill gate | `src/topic_ingest/backfill/` | Legacy unscripted niche remediation (Issue 39) |
+| Dashboard | `src/dashboard/` | Read-only review/calendar viewer (Issues 44–46) |
 
 ## Sessions
 
@@ -74,6 +76,7 @@ Implement all 10 slices of the Pivot.6 AI-generated pipeline: RSS ingest → top
 - [issue-22-shot-normalization-tdd](.sessions/2026-05-26__issue-22-shot-normalization-tdd/handoff.md) — 2026-05-26, commit `bca0095`
 - [adr-0004-live-clip-review](.sessions/2026-05-28__adr-0004-live-clip-review/handoff.md) — 2026-05-28, sample MP4 pending operator review
 - [issues-39-42-tdd](.sessions/2026-05-31__issues-39-42-tdd/handoff.md) — 2026-05-31, backfill + scheduler fix
+- [issues-44-46-dashboard-tdd](.sessions/2026-05-31__issues-44-46-dashboard-tdd/handoff.md) — 2026-05-31, dashboard v1
 
 ## Open Items
 

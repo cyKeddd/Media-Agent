@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Media Agent Dashboard</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --card: #1a1d27;
+      --text: #e8eaed;
+      --muted: #9aa0a6;
+      --accent: #8ab4f8;
+      --awaiting: #f9ab00;
+      --scheduled: #81c995;
+      --published: #669df6;
+      --rejected: #f28b82;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 1rem 1.5rem 2rem;
+      line-height: 1.4;
+    }
+    h1 { font-size: 1.4rem; margin: 0 0 1rem; }
+    h2 { font-size: 1.1rem; margin: 1.5rem 0 0.75rem; color: var(--muted); }
+    button {
+      background: var(--accent);
+      color: #111;
+      border: none;
+      padding: 0.45rem 0.9rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .header-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      background: var(--card);
+      padding: 1rem;
+      border-radius: 10px;
+      margin-bottom: 1rem;
+    }
+    .stat { min-width: 120px; }
+    .stat .label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; }
+    .stat .value { font-size: 1.2rem; font-weight: 600; }
+    .stage-counts { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    .badge {
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .badge.awaiting_review { background: var(--awaiting); color: #111; }
+    .badge.approved_scheduled { background: var(--scheduled); color: #111; }
+    .badge.published { background: var(--published); color: #111; }
+    .badge.rejected { background: var(--rejected); color: #111; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+    .card {
+      background: var(--card);
+      border-radius: 10px;
+      padding: 0.75rem;
+      scroll-margin-top: 1rem;
+    }
+    .card video { width: 100%; border-radius: 6px; background: #000; }
+    .card .title { font-weight: 600; margin: 0.5rem 0 0.25rem; }
+    .card .meta { font-size: 0.85rem; color: var(--muted); }
+    .calendar-nav { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; }
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+    }
+    .cal-day {
+      background: var(--card);
+      min-height: 90px;
+      padding: 4px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+    }
+    .cal-day .date-num { color: var(--muted); font-weight: 600; }
+    .cal-entry {
+      margin-top: 2px;
+      padding: 2px 4px;
+      border-radius: 4px;
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .cal-entry.awaiting_review { background: var(--awaiting); color: #111; }
+    .cal-entry.approved_scheduled { background: var(--scheduled); color: #111; }
+    .cal-entry.published { background: var(--published); color: #111; }
+    .cal-entry.rejected { background: var(--rejected); color: #111; }
+    .uploaded-list { list-style: none; padding: 0; margin: 0; }
+    .uploaded-list li {
+      background: var(--card);
+      padding: 0.6rem 0.75rem;
+      border-radius: 8px;
+      margin-bottom: 0.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .uploaded-list a { color: var(--accent); }
+    .live-tag { font-size: 0.7rem; padding: 0.15rem 0.4rem; border-radius: 4px; background: var(--scheduled); color: #111; }
+    .sched-tag { font-size: 0.7rem; padding: 0.15rem 0.4rem; border-radius: 4px; background: var(--muted); color: #111; }
+    #status { color: var(--muted); font-size: 0.85rem; margin-left: 0.75rem; }
+  </style>
+</head>
+<body>
+  <h1>Media Agent Dashboard <button id="refresh">Refresh</button><span id="status"></span></h1>
+
+  <section id="header" class="header-strip"></section>
+
+  <h2>Review queue</h2>
+  <div id="review-queue" class="grid"></div>
+
+  <h2>Calendar</h2>
+  <div class="calendar-nav">
+    <button id="prev-month">&larr;</button>
+    <span id="month-label"></span>
+    <button id="next-month">&rarr;</button>
+  </div>
+  <div id="calendar" class="calendar-grid"></div>
+
+  <h2>Uploaded</h2>
+  <ul id="uploaded" class="uploaded-list"></ul>
+
+  <script>
+    let viewData = null;
+    let calYear = new Date().getFullYear();
+    let calMonth = new Date().getMonth();
+
+    async function loadView() {
+      document.getElementById('status').textContent = 'Loading…';
+      const resp = await fetch('/api/view');
+      viewData = await resp.json();
+      renderHeader();
+      renderReviewQueue();
+      renderCalendar();
+      renderUploaded();
+      document.getElementById('status').textContent = 'Updated ' + new Date().toLocaleTimeString();
+    }
+
+    function renderHeader() {
+      const h = viewData.header;
+      const stages = Object.entries(h.stage_counts)
+        .filter(([k, v]) => v > 0 && k !== 'unknown')
+        .map(([k, v]) => `<span class="badge ${k}">${k.replace(/_/g, ' ')}: ${v}</span>`)
+        .join('');
+      document.getElementById('header').innerHTML = `
+        <div class="stat"><div class="label">OpenRouter today</div>
+          <div class="value">${h.spend_today_cents}¢ / ${h.daily_cap_cents}¢</div></div>
+        <div class="stat"><div class="label">OpenRouter week</div>
+          <div class="value">${h.spend_week_cents}¢</div></div>
+        <div class="stat"><div class="label">Unscripted topics</div>
+          <div class="value">${h.unscripted_topics}</div></div>
+        <div class="stage-counts">${stages}</div>`;
+    }
+
+    function renderReviewQueue() {
+      const el = document.getElementById('review-queue');
+      if (!viewData.review_queue.length) {
+        el.innerHTML = '<p class="meta">No clips awaiting review.</p>';
+        return;
+      }
+      el.innerHTML = viewData.review_queue.map(item => `
+        <div class="card" id="clip-${item.clip_id}">
+          ${item.video_relpath
+            ? `<video controls preload="metadata" src="/api/video/${encodeURI(item.video_relpath)}"></video>`
+            : '<p class="meta">No preview file found</p>'}
+          <div class="title">${esc(item.title)}</div>
+          <div class="meta">${esc(item.hook)}</div>
+          <div class="meta">${item.content_kind}${item.shot_mix ? ' · ' + esc(item.shot_mix) : ''}</div>
+          <div class="meta">Slot: ${item.publish_at_local || 'unscheduled'}</div>
+        </div>`).join('');
+    }
+
+    function renderCalendar() {
+      const label = document.getElementById('month-label');
+      label.textContent = new Date(calYear, calMonth).toLocaleString(undefined, { month: 'long', year: 'numeric' });
+      const first = new Date(calYear, calMonth, 1);
+      const startPad = first.getDay();
+      const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+      const cells = [];
+      for (let i = 0; i < startPad; i++) cells.push('<div class="cal-day"></div>');
+      for (let d = 1; d <= daysInMonth; d++) {
+        const key = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const entries = (viewData.calendar_by_date[key] || []).map(e =>
+          `<div class="cal-entry ${e.review_stage}" data-clip="${e.clip_id}" title="${esc(e.title)}">${e.slot_local} ${esc(e.title)}</div>`
+        ).join('');
+        cells.push(`<div class="cal-day"><div class="date-num">${d}</div>${entries}</div>`);
+      }
+      document.getElementById('calendar').innerHTML = cells.join('');
+      document.querySelectorAll('.cal-entry').forEach(el => {
+        el.addEventListener('click', () => {
+          const id = el.dataset.clip;
+          const target = document.getElementById('clip-' + id);
+          if (target) target.scrollIntoView({ behavior: 'smooth' });
+          else {
+            const up = viewData.uploaded.find(u => u.clip_id === id);
+            if (up) window.open(up.youtube_url, '_blank');
+          }
+        });
+      });
+    }
+
+    function renderUploaded() {
+      const el = document.getElementById('uploaded');
+      if (!viewData.uploaded.length) {
+        el.innerHTML = '<li class="meta">Nothing uploaded yet.</li>';
+        return;
+      }
+      el.innerHTML = viewData.uploaded.map(u => `
+        <li>
+          <span>${esc(u.title)}</span>
+          <span>
+            <span class="${u.is_live ? 'live-tag' : 'sched-tag'}">${u.is_live ? 'Live' : 'Scheduled'}</span>
+            <a href="${u.youtube_url}" target="_blank" rel="noopener">YouTube</a>
+          </span>
+        </li>`).join('');
+    }
+
+    function esc(s) {
+      return String(s || '').replace(/[&<>"']/g, c =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    document.getElementById('refresh').addEventListener('click', loadView);
+    document.getElementById('prev-month').addEventListener('click', () => {
+      calMonth--;
+      if (calMonth < 0) { calMonth = 11; calYear--; }
+      renderCalendar();
+    });
+    document.getElementById('next-month').addEventListener('click', () => {
+      calMonth++;
+      if (calMonth > 11) { calMonth = 0; calYear++; }
+      renderCalendar();
+    });
+
+    loadView();
+  </script>
+</body>
+</html>

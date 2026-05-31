@@ -4,7 +4,7 @@
 
 # CONTEXT Index — Media-Agent (Pivot.6)
 
-Tech/AI news YouTube Shorts pipeline. Issues 39–41 + **43** complete; Issue 42 partial (ship/stability gates pending). Backfill done (89 rejected); schedulers fixed; cumulative 250¢/clip cap + shot reuse on retry shipped. **Web review/calendar dashboard v1 planned** (read-only; FastAPI + pure view-model; Issues 44–46) — buildable now alongside the Thu 06-04 ship gate.
+Tech/AI news YouTube Shorts pipeline. Issues 39–41 + **43** complete; Issue 42 partial (ship/stability gates pending). **Web review/calendar dashboard v1 shipped** (Issues 44–46; read-only FastAPI dashboard). Backfill done (89 rejected); schedulers fixed; cumulative 250¢/clip cap + shot reuse on retry shipped.
 
 ## Domain terminology (sharpened)
 
@@ -19,8 +19,8 @@ Tech/AI news YouTube Shorts pipeline. Issues 39–41 + **43** complete; Issue 42
 |---|---|---|---|---|
 | planning | [phase-planning.md](phase-planning.md) | in-progress | 2026-05-31 | Niche locked (Tech/AI), 10-slice plan, two-gate sign-off; finish-line roadmap (Issues 26–29); AI-niche refit (ADR-0004, Issues 30–34); first live hybrid gen_run (Issues 35–38); steady-state autonomy path (Issues 39–43); **web review/calendar dashboard v1** (read-only; FastAPI + pure view-model; Review stage glossary; Issues 44–46) |
 | architecture | [phase-architecture.md](phase-architecture.md) | in-progress | 2026-05-27 | SQLite schema (4 Pivot.6 tables), Pydantic Config, 50+ DAL helpers, Provider ABC; **ADR-0002** assembler shot normalization; **ADR-0003** licensed-only image sourcing; **ADR-0004** AI-centric niche + ingest relevance gate |
-| development | [phase-development.md](phase-development.md) | in-progress | 2026-05-31 | First hybrid live; Issues 35–38 done; **Issues 39–41 shipped** (backfill + scheduler + clips cap); Issue 42 enablement partial |
-| testing | [phase-testing.md](phase-testing.md) | in-progress | 2026-05-31 | Issue 39 backfill tests + Issue 41 clips_n regression |
+| development | [phase-development.md](phase-development.md) | in-progress | 2026-05-31 | First hybrid live; Issues 35–38 done; Issues 39–41 + 43 shipped; **Issues 44–46 dashboard v1**; Issue 42 enablement partial |
+| testing | [phase-testing.md](phase-testing.md) | in-progress | 2026-05-31 | Issue 39 backfill + Issue 41 clips_n + **Issue 44–46 dashboard tests (16)** |
 | deployment | [phase-deployment.md](phase-deployment.md) | in-progress | 2026-05-31 | Scheduler XMLs fixed + re-registered; ship gate Thu 06-04 pending |
 | review | [phase-review.md](phase-review.md) | complete | 2026-05-24 | 4-check policy gate, 6-gate quality screen, AI disclosure compliance (Slice 9), pre-flight checklist |
 
