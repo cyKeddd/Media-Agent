@@ -83,6 +83,10 @@ The T+1h check that the immediate upload path succeeded (disclosure visible, no 
 **Stability gate**:
 The T+48h check that the **Clip** stayed live and clean. Marked `[x]`. Runs concurrently; does not block forward work.
 
+**Review stage**:
+The lifecycle position of a **Clip** on its way to publication, *derived* by reconciling which `output/` directory currently holds its file with its DB fields — **Awaiting review** (file in `output/pending/`), **Approved / scheduled** (file in `output/approved/`, `publish_at_utc` set, not yet uploaded), **Published** (`youtube_video_id` set), or **Rejected**. Distinct from `clips.status`, which does not encode the filesystem HITL position — the drag-to-approve gate lives on disk, not in a column.
+_Avoid_: clip state, status (when you mean the filesystem position).
+
 ## Relationships
 
 - A **Topic** produces one **Script**.

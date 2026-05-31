@@ -68,6 +68,7 @@ Lock the niche, content format, budget, weekly cadence, and tech stack direction
 - [2026-05-27] /grill-with-docs → /to-prd → /to-issues: root-caused the OnlyFans clip (Topic #82) + stretched photo (zoompan bug); locked ADR-0004 (AI-centric niche, ingest gate, significance+HN selection); sharpened glossary (Topic / Significance / Trending corroboration); published PRD `ai-niche-trending-selection-and-photo-framing` + Issues 30–34. No code written.
 - [2026-05-30] /grill-with-docs → /to-prd → /to-issues: root-caused the 3 hybrid-`gen_run` blockers against code (probe/fetch asymmetry, niche infra/off_niche conflation, misfit legacy policy gate); locked 6 decisions; refined ADR-0003 (degrade decision on a fetched+validated asset); published PRD `first-live-hybrid-gen-run` + Issues 35–38. No code written.
 - [2026-05-31] /grill-with-docs → /to-prd → /to-issues: root-caused the off-niche reverse-aging clip to a 112-topic pre-gate backlog (not a classifier bug); locked S1–S7 (slot dedup, backfill-gate, scheduler XML fixes, enable trigger, evidence+floor hands-off, $20 top-up); published PRD `steady-state-autonomous-cadence` + Issues 39–42. Dashboard captured as next-up follow-on. No code written.
+- [2026-05-31] /grill-with-docs → /to-prd → /to-issues: locked the **web review/calendar dashboard v1** (D1–D5: read-only viewer + calendar + preview; FastAPI + static page on 127.0.0.1; pure view-model deep module; derived **Review stage**; four sections). Added **Review stage** to the glossary; verified `quota_usage.script_id` self-migrates (per-clip cost works). Published PRD `web-review-calendar-dashboard` + Issues 44–46. v2 = approve action, v3+ = control panel + LAN/token. No code written.
 
 ## Artifacts
 
@@ -91,6 +92,8 @@ Lock the niche, content format, budget, weekly cadence, and tech stack direction
 | Grill record (hybrid gen_run) | `CONTEXT/Grilling/2026-05-30-hybrid-gen-run-finish-line.md` | 6 decisions of record |
 | Steady-state PRD | `docs/prds/steady-state-autonomous-cadence.md` | Issues 39–42; `ready-for-agent` |
 | Grill record (steady-state) | `CONTEXT/Grilling/2026-05-31-steady-state-autonomy.md` | S1–S7 decisions of record |
+| Dashboard PRD (v1) | `docs/prds/web-review-calendar-dashboard.md` | Issues 44–46; `ready-for-agent` |
+| Grill record (dashboard) | `CONTEXT/Grilling/2026-05-31-web-review-dashboard.md` | D1–D5 decisions of record |
 
 ## Sessions
 
@@ -102,6 +105,7 @@ Lock the niche, content format, budget, weekly cadence, and tech stack direction
 - AI-niche + photo framing (2026-05-27) — `.sessions/2026-05-27__ai-niche-and-photo-framing/handoff.md`
 - First live hybrid gen_run (2026-05-30) — `.sessions/2026-05-30__hybrid-gen-run-finish-line/handoff.md`
 - Steady-state autonomy grill (2026-05-31) — `.sessions/2026-05-31__steady-state-autonomy-grill/handoff.md`
+- Web review/calendar dashboard grill (2026-05-31) — `.sessions/2026-05-31__web-dashboard-grill/handoff.md`
 
 ## Open Items
 
