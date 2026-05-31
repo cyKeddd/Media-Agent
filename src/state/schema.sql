@@ -84,7 +84,6 @@ CREATE TABLE IF NOT EXISTS quota_usage (
     recorded_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_quota_date ON quota_usage(date);
-CREATE INDEX IF NOT EXISTS idx_quota_script_id ON quota_usage(script_id);
 
 CREATE TABLE IF NOT EXISTS dup_hashes (
     clip_id            TEXT NOT NULL REFERENCES clips(clip_id),

@@ -16,7 +16,7 @@ PORT = 8765
 def main() -> None:
     cfg = load_config()
     db_path = cfg.abs_path(cfg.paths.state_db)
-    conn = connect(db_path)
+    conn = connect(db_path, check_same_thread=False)
     initialize_schema(conn)
     repo = Repository(conn)
     reader = build_reader(repo)

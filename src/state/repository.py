@@ -8,10 +8,14 @@ from typing import Iterator
 SCHEMA_FILE = Path(__file__).parent / "schema.sql"
 
 
-def connect(db_path: str | Path) -> sqlite3.Connection:
+def connect(db_path: str | Path, *, check_same_thread: bool = True) -> sqlite3.Connection:
     db_path = Path(db_path)
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(db_path), isolation_level=None)
+    conn = sqlite3.connect(
+        str(db_path),
+        isolation_level=None,
+        check_same_thread=check_same_thread,
+    )
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")
@@ -28,9 +32,9 @@ def _ensure_quota_script_id_column(conn: sqlite3.Connection) -> None:
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(quota_usage)").fetchall()}
     if "script_id" not in cols:
         conn.execute("ALTER TABLE quota_usage ADD COLUMN script_id TEXT")
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_quota_script_id ON quota_usage(script_id)"
-        )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_quota_script_id ON quota_usage(script_id)"
+    )
 
 
 class Repository:
