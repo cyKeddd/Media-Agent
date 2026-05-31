@@ -42,6 +42,7 @@ Implement all 10 slices of the Pivot.6 AI-generated pipeline: RSS ingest → top
 - [2026-05-31] **Issue 38 live hybrid:** `1ec5cbc1` assembled (252¢ Kling); uploaded **`NPFJiqmd4ro`**; pitch `+0Hz` fix.
 - [2026-05-27] **Issues 30–34 (ADR-0004):** curated feeds, niche gate, significance+HN, Ken Burns fix, doc reconciliation. 55 tests green.
 - [2026-05-31] **Issues 39–42 (steady-state autonomy):** backfill module + live run (89 rejected); scheduler XMLs fixed + re-registered; clips_n regression test; enablement evidence in `progress.md`. Issue 42 partial — ship/stability gates pending.
+- [2026-05-31] **Issue 43:** cumulative per-clip spend ceiling + shot reuse on retry.
 
 ## Artifacts
 

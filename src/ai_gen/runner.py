@@ -7,13 +7,17 @@ Usage (from weekly_run / gen_run):
 
 from __future__ import annotations
 
+import shutil
 import threading
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
 from loguru import logger
 
 from .base import GenerationStatus, Provider
+
+DEFAULT_SHOT_COST_ESTIMATE_CENTS = 67
 
 
 @dataclass
@@ -25,6 +29,8 @@ class ShotJob:
     output_path: Path | None = None
     error: str | None = None
     cost_cents: int | None = None
+    reused: bool = False
+    job_id: str | None = None
 
 
 def generate_shots(
@@ -37,39 +43,113 @@ def generate_shots(
     timeout_s: int = 600,
     max_concurrent: int = 2,
     repo=None,
+    script_id: str | None = None,
+    per_clip_cost_cents_max: int | None = None,
 ) -> list[Path]:
     """Submit all shots, poll until done, download mp4s, return ordered paths.
 
-    shots: list of {prompt: str, duration_s: int}
-    Returns list of Path in the same order as shots.
-    Raises RuntimeError if any shot fails.
+    When ``script_id`` and ``repo`` are set, succeeded ``generation_jobs`` are
+    reused on retry (0¢ re-bill) and OpenRouter spend is attributed cumulatively.
     """
     dest_dir.mkdir(parents=True, exist_ok=True)
 
     jobs: list[ShotJob] = [
-        ShotJob(index=i, prompt=s["prompt"], duration_s=s.get("duration_s", 5))
+        ShotJob(
+            index=i,
+            prompt=s["prompt"],
+            duration_s=s.get("duration_s", 5),
+            job_id=str(uuid.uuid4()),
+        )
         for i, s in enumerate(shots)
     ]
 
-    # Submit in batches of max_concurrent
-    _submit_all(jobs, client, aspect_ratio, max_concurrent)
+    reuse_paths: dict[int, Path] = {}
+    if repo is not None and script_id:
+        for row in repo.succeeded_generation_jobs(script_id):
+            src = row["output_path"]
+            if src and Path(src).exists():
+                reuse_paths[int(row["shot_index"])] = Path(src)
 
-    # Poll and download
-    _wait_and_download(jobs, client, dest_dir, poll_interval_s, timeout_s)
+    for job in jobs:
+        if job.index in reuse_paths:
+            src = reuse_paths[job.index]
+            dest = dest_dir / f"shot_{job.index:02d}.mp4"
+            if src.resolve() != dest.resolve():
+                shutil.copy2(src, dest)
+                job.output_path = dest
+            else:
+                job.output_path = src
+            job.reused = True
+            logger.info(
+                "ai_gen: reusing shot {} for {} → {}",
+                job.index, script_id, job.output_path,
+            )
+
+    billable = [j for j in jobs if not j.reused]
+    if billable:
+        _check_script_ceiling(
+            repo, script_id, billable, per_clip_cost_cents_max,
+        )
+        _submit_all(billable, client, aspect_ratio, max_concurrent)
+        _wait_and_download(billable, client, dest_dir, poll_interval_s, timeout_s)
 
     failed = [j for j in jobs if j.error]
     if failed:
         errs = "; ".join(f"shot {j.index}: {j.error}" for j in failed)
         raise RuntimeError(f"generate_shots: {len(failed)} shot(s) failed — {errs}")
 
-    if repo is not None:
+    if repo is not None and script_id:
         for job in jobs:
+            if job.reused:
+                continue
             if job.cost_cents:
+                if repo.quota_would_exceed_script(
+                    script_id, job.cost_cents, per_clip_cost_cents_max or 0,
+                ) and per_clip_cost_cents_max:
+                    raise RuntimeError(
+                        f"generate_shots: clip {script_id} OpenRouter cost "
+                        f"{repo.quota_script_total(script_id) + job.cost_cents}c exceeds "
+                        f"per_clip_cost_cents_max={per_clip_cost_cents_max}"
+                    )
                 repo.quota_record(
-                    "openrouter", job.cost_cents, provider="openrouter",
+                    "openrouter",
+                    job.cost_cents,
+                    provider="openrouter",
+                    script_id=script_id,
                 )
+            repo.upsert_generation_job(
+                job_id=job.job_id or str(uuid.uuid4()),
+                script_id=script_id,
+                shot_index=job.index,
+                provider="openrouter_kling",
+                prompt=job.prompt,
+                duration_s=job.duration_s,
+                status="succeeded" if job.output_path else "failed",
+                external_id=job.external_id,
+                output_path=str(job.output_path) if job.output_path else None,
+                cost_cents=job.cost_cents,
+                error=job.error,
+            )
 
     return [j.output_path for j in jobs]  # type: ignore[return-value]
+
+
+def _check_script_ceiling(
+    repo,
+    script_id: str | None,
+    jobs: list[ShotJob],
+    per_clip_cost_cents_max: int | None,
+) -> None:
+    if repo is None or not script_id or not per_clip_cost_cents_max:
+        return
+    projected = repo.quota_script_total(script_id) + (
+        len(jobs) * DEFAULT_SHOT_COST_ESTIMATE_CENTS
+    )
+    if projected > per_clip_cost_cents_max:
+        raise RuntimeError(
+            f"generate_shots: clip {script_id} projected OpenRouter cost "
+            f"{projected}c exceeds per_clip_cost_cents_max={per_clip_cost_cents_max}"
+        )
 
 
 # ------------------------------------------------------------------

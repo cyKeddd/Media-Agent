@@ -6,7 +6,8 @@ where the work is at a glance.
 
 | Date | Session folder | Summary | Next action |
 |---|---|---|---|
-| 2026-05-31 | [issues-39-42-tdd](2026-05-31__issues-39-42-tdd/handoff.md) | TDD Issues 39+41; backfill 89 rejected; scheduler XMLs fixed + re-registered; Issue 42 enablement partial | Thu 2026-06-04 T+1h ship gate on `NPFJiqmd4ro` (Issue 29) |
+| 2026-05-31 | [issue-43-clip-spend-tdd](2026-05-31__issue-43-clip-spend-tdd/handoff.md) | Issue 43 TDD: cumulative 250¢ per-clip cap + shot reuse on retry | Thu 2026-06-04 ship gate on `NPFJiqmd4ro` |
+| 2026-05-31 | [issues-39-42-tdd](2026-05-31__issues-39-42-tdd/handoff.md) | TDD Issues 39+41; backfill 89 rejected; scheduler XMLs fixed + re-registered; Issue 42 enablement partial | *(superseded by issue-43)* |
 | 2026-05-31 | [steady-state-autonomy-grill](2026-05-31__steady-state-autonomy-grill/handoff.md) | Grill→PRD→Issues for steady-state autonomy; root-caused off-niche clip to 112-topic pre-gate backlog; slot dedup (hybrid→Thu 06-04); stale scheduler XMLs; PRD + Issues 39–42 (no code) | *(superseded by 39–42 TDD)* |
 | 2026-05-31 | [hybrid-live-upload-issue-38](2026-05-31__hybrid-live-upload-issue-38/handoff.md) | First hybrid live gen_run + upload `NPFJiqmd4ro`; pitch fix; 252¢ Kling | *(superseded by steady-state grill; gate moved to Thu 06-04)* |
 | 2026-05-31 | [issues-35-37-tdd](2026-05-31__issues-35-37-tdd/handoff.md) | TDD Issues 35–37 shipped | *(superseded by hybrid-live-upload)* |

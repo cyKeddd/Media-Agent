@@ -1064,3 +1064,9 @@ Fix steps: (1) confirm CUDA 12.x toolkit installed; (2) add `CUDA\v12.x\bin` to 
 - [ ] **Stability gate (T+48h ~2026-06-06):** monitor in parallel; outcome not yet recorded.
 - [ ] **Hands-off trigger:** requires (a) stability gate pass + (b) ≥2 clean scheduler-driven weekly cycles + (c) ≥2 weeks since first hybrid ship (floor **2026-06-18**). `human_review` remains **true**.
 - [ ] Recommend Issue 43 (cumulative per-clip spend ceiling) before hands-off flip.
+
+#### Issue 43 — Cumulative per-clip spend ceiling (retry-safe) · complete
+- [x] `quota_usage.script_id` attribution + `quota_script_total()` / `quota_would_exceed_script()`.
+- [x] `generate_shots()` enforces cumulative 250¢ cap before billing; reuses succeeded `generation_jobs` on retry (0¢ re-bill).
+- [x] Persistent shot cache at `data/ai_gen/{script_id}/`; per-attempt delta check removed from `_generate_clip`.
+- [x] Tests: `tests/test_clip_spend_ceiling.py` (6 tests, fake ledger/client only).

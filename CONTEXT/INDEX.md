@@ -4,7 +4,7 @@
 
 # CONTEXT Index — Media-Agent (Pivot.6)
 
-Tech/AI news YouTube Shorts pipeline. **First hybrid clip uploaded** (`NPFJiqmd4ro`, publish **Thu 2026-06-04 09:00 SGT**). Issues 39–41 complete; Issue 42 partial (ship/stability gates pending). **Backfill:** 89 legacy topics rejected, 28 on-niche kept. **Schedulers:** fixed + re-registered (Sun 02:00 / daily 09:00 SGT). `human_review` ON until evidence+calendar trigger.
+Tech/AI news YouTube Shorts pipeline. Issues 39–41 + **43** complete; Issue 42 partial (ship/stability gates pending). Backfill done (89 rejected); schedulers fixed; **cumulative 250¢/clip cap + shot reuse on retry** shipped.
 
 ## Domain terminology (sharpened)
 

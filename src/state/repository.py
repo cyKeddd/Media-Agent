@@ -21,6 +21,16 @@ def connect(db_path: str | Path) -> sqlite3.Connection:
 def initialize_schema(conn: sqlite3.Connection) -> None:
     sql = SCHEMA_FILE.read_text()
     conn.executescript(sql)
+    _ensure_quota_script_id_column(conn)
+
+
+def _ensure_quota_script_id_column(conn: sqlite3.Connection) -> None:
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(quota_usage)").fetchall()}
+    if "script_id" not in cols:
+        conn.execute("ALTER TABLE quota_usage ADD COLUMN script_id TEXT")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_quota_script_id ON quota_usage(script_id)"
+        )
 
 
 class Repository:
@@ -556,15 +566,36 @@ class Repository:
     # ---- quota (absorbed from QuotaLedger) ----
 
     def quota_record(
-        self, endpoint: str, units: int, *, provider: str = "youtube",
+        self,
+        endpoint: str,
+        units: int,
+        *,
+        provider: str = "youtube",
+        script_id: str | None = None,
     ) -> None:
         """Record quota usage for today (UTC)."""
         from datetime import datetime, timezone
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         self.conn.execute(
-            "INSERT INTO quota_usage (date, endpoint, units, provider) VALUES (?, ?, ?, ?)",
-            (today, endpoint, int(units), provider),
+            "INSERT INTO quota_usage (date, endpoint, units, provider, script_id) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (today, endpoint, int(units), provider, script_id),
         )
+
+    def quota_script_total(self, script_id: str) -> int:
+        """Cumulative OpenRouter spend attributed to a script across all dates."""
+        row = self.conn.execute(
+            "SELECT COALESCE(SUM(units), 0) AS s FROM quota_usage "
+            "WHERE provider='openrouter' AND script_id=?",
+            (script_id,),
+        ).fetchone()
+        return int(row["s"]) if row else 0
+
+    def quota_would_exceed_script(
+        self, script_id: str, units: int, ceiling: int,
+    ) -> bool:
+        """True if recording `units` more would exceed the per-script lifetime ceiling."""
+        return (self.quota_script_total(script_id) + units) > ceiling
 
     def quota_today_total(self, *, provider: str | None = None) -> int:
         """Sum of all units recorded today (UTC), optionally filtered by provider."""
@@ -583,9 +614,16 @@ class Repository:
             ).fetchone()
         return int(row["s"]) if row else 0
 
-    def quota_would_exceed(self, units: int, ceiling: int) -> bool:
+    def quota_would_exceed(
+        self, units: int, ceiling: int, *, provider: str | None = None,
+    ) -> bool:
         """Return True if recording `units` more would push today's total past ceiling."""
-        return (self.quota_today_total() + units) > ceiling
+        today_total = (
+            self.quota_today_total(provider=provider)
+            if provider is not None
+            else self.quota_today_total()
+        )
+        return (today_total + units) > ceiling
 
     # ---- Pivot.6: topics ----
 
@@ -730,6 +768,58 @@ class Repository:
         self.conn.execute(
             f"UPDATE scripts SET {', '.join(sets)} WHERE script_id=?", params
         )
+
+    # ---- Pivot.6: generation_jobs ----
+
+    def upsert_generation_job(
+        self,
+        *,
+        job_id: str,
+        script_id: str,
+        shot_index: int,
+        provider: str,
+        prompt: str,
+        duration_s: int,
+        status: str,
+        external_id: str | None = None,
+        output_path: str | None = None,
+        cost_cents: int | None = None,
+        submitted_at: str | None = None,
+        completed_at: str | None = None,
+        error: str | None = None,
+    ) -> None:
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        self.conn.execute(
+            """
+            INSERT INTO generation_jobs (
+                job_id, script_id, shot_index, provider, prompt, duration_s,
+                status, external_id, output_path, cost_cents,
+                submitted_at, completed_at, error
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(job_id) DO UPDATE SET
+                status=excluded.status,
+                external_id=excluded.external_id,
+                output_path=excluded.output_path,
+                cost_cents=excluded.cost_cents,
+                completed_at=excluded.completed_at,
+                error=excluded.error
+            """,
+            (
+                job_id, script_id, shot_index, provider, prompt, duration_s,
+                status, external_id, output_path, cost_cents,
+                submitted_at or now, completed_at or now, error,
+            ),
+        )
+
+    def succeeded_generation_jobs(self, script_id: str) -> list[sqlite3.Row]:
+        """Return succeeded generation_jobs for a script, ordered by shot_index."""
+        return self.conn.execute(
+            "SELECT * FROM generation_jobs "
+            "WHERE script_id=? AND status='succeeded' "
+            "ORDER BY shot_index ASC",
+            (script_id,),
+        ).fetchall()
 
     # ---- Pivot.6: clips for generation run ----
 

@@ -34,7 +34,7 @@ Maintain a comprehensive test suite that covers all pipeline modules. Tests must
 - [2026-05-09] Phase 4.5 — policy_gate (4 checks + pure evaluator) + quality_screen (6 gates) tests.
 - [2026-05-27] Issue 33 — 8 Ken Burns argv/pure-helper tests (`tests/assembler/test_ken_burns.py`).
 - [2026-05-27] Issue 31 — 5 niche-gate unit + 2 ingest integration tests.
-- [2026-05-31] Issues 39 + 41 — 6 backfill tests + `test_clips_n_caps_selection_at_default_two` (7 new in changed files).
+- [2026-05-31] Issue 43 — 6 clip-spend-ceiling tests (`tests/test_clip_spend_ceiling.py`).
 
 ## Artifacts
 
@@ -49,6 +49,7 @@ Maintain a comprehensive test suite that covers all pipeline modules. Tests must
 | Scripter Stage C | `tests/test_scripter_stage_c.py` | 11 tests |
 | Orchestrator tests | `tests/test_gen_run.py` | 11 tests (Slice 8 + Issue 41 clips cap) |
 | Backfill tests | `tests/test_topic_ingest_backfill.py` | 6 tests — Issue 39 |
+| Clip spend tests | `tests/test_clip_spend_ceiling.py` | 6 tests — Issue 43 |
 | Uploader tests | `tests/test_uploader_*.py` | templater, insert_body, resumable, orphan_marker, runner |
 | Policy gate tests | `tests/test_policy_*.py` | banlist, profanity, NSFW, hook_sanity, evaluator |
 | Assembler tests | `tests/assembler/test_build.py`, `test_normalize.py`, `test_assemble_mixed_res.py` | argv + lavfi ffmpeg integration |

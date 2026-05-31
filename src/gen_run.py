@@ -278,7 +278,8 @@ def _generate_clip(
 
     pending_dir = cfg.abs_path(cfg.paths.pending_dir)
     pending_dir.mkdir(parents=True, exist_ok=True)
-    shots_dir = Path(tempfile.mkdtemp(prefix=f"gen_{clip_id}_shots_"))
+    shots_dir = cfg.abs_path(f"data/ai_gen/{clip_id}")
+    shots_dir.mkdir(parents=True, exist_ok=True)
     narration_dir = Path(tempfile.mkdtemp(prefix=f"gen_{clip_id}_narr_"))
     subs_dir = Path(tempfile.mkdtemp(prefix=f"gen_{clip_id}_subs_"))
 
@@ -303,19 +304,18 @@ def _generate_clip(
             raise RuntimeError("OPENROUTER_API_KEY required for ai_video shots")
         client = OpenRouterKlingClient(api_key=openrouter_api_key)
         track_quota = isinstance(repo, Repository)
-        openrouter_before = (
-            repo.quota_today_total(provider="openrouter") if track_quota else 0
-        )
         ai_paths = generate_shots(
             ai_shots, shots_dir, client,
             max_concurrent=ai_cfg.max_concurrent,
             repo=repo if track_quota else None,
+            script_id=clip_id if track_quota else None,
+            per_clip_cost_cents_max=ai_cfg.per_clip_cost_cents_max if track_quota else None,
         )
         if track_quota:
-            clip_cost = repo.quota_today_total(provider="openrouter") - openrouter_before
-            if clip_cost > ai_cfg.per_clip_cost_cents_max:
+            if repo.quota_script_total(clip_id) > ai_cfg.per_clip_cost_cents_max:
                 raise RuntimeError(
-                    f"clip {clip_id} OpenRouter cost {clip_cost}c exceeds "
+                    f"clip {clip_id} cumulative OpenRouter cost "
+                    f"{repo.quota_script_total(clip_id)}c exceeds "
                     f"per_clip_cost_cents_max={ai_cfg.per_clip_cost_cents_max}"
                 )
             if repo.quota_today_total(provider="openrouter") > ai_cfg.daily_spend_cents_ceiling:
