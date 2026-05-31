@@ -43,9 +43,9 @@
   </Settings>
   <Actions Context="Author">
     <Exec>
-      <Command>C:\Users\cryptix\Documents\Media-Agent-main\.venv\Scripts\python.exe</Command>
+      <Command>C:\Users\cryptix\Desktop\Work\Media-Agent-main\.venv\Scripts\python.exe</Command>
       <Arguments>-m src.daily_upload</Arguments>
-      <WorkingDirectory>C:\Users\cryptix\Documents\Media-Agent-main</WorkingDirectory>
+      <WorkingDirectory>C:\Users\cryptix\Desktop\Work\Media-Agent-main</WorkingDirectory>
     </Exec>
   </Actions>
 </Task>

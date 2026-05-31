@@ -1,7 +1,7 @@
 # Phase: development
 **Project:** Media-Agent (Pivot.6)
 **Status:** in-progress
-**Last updated:** 2026-05-31 (issues-35-37-tdd)
+**Last updated:** 2026-05-31 (issues-39-42-tdd)
 
 ## Objective
 
@@ -41,7 +41,7 @@ Implement all 10 slices of the Pivot.6 AI-generated pipeline: RSS ingest → top
 - [2026-05-28] Live `gen_run --clips 1` exit 0 but no MP4 (cost guard 201¢ > 100¢ cap). Sample clip via `render_from_script.py` in `output/pending/` for HITL. Hybrid path blocked on `openai_logo` licensed fetch; `per_clip_cost_cents_max` bumped to 270.
 - [2026-05-31] **Issue 38 live hybrid:** `1ec5cbc1` assembled (252¢ Kling); uploaded **`NPFJiqmd4ro`**; pitch `+0Hz` fix.
 - [2026-05-27] **Issues 30–34 (ADR-0004):** curated feeds, niche gate, significance+HN, Ken Burns fix, doc reconciliation. 55 tests green.
-- [2026-05-27] **Issue 31 (Niche gate at ingest):** `classify_niche` reject-before-persist; 48h→96h low-yield widen.
+- [2026-05-31] **Issues 39–42 (steady-state autonomy):** backfill module + live run (89 rejected); scheduler XMLs fixed + re-registered; clips_n regression test; enablement evidence in `progress.md`. Issue 42 partial — ship/stability gates pending.
 
 ## Artifacts
 
@@ -59,7 +59,7 @@ Implement all 10 slices of the Pivot.6 AI-generated pipeline: RSS ingest → top
 | Assembler | `src/assembler/build.py` + `normalize.py` | Shot normalize → Stitch (xfade/concat filter) → NVENC/libx264 1080×1920 |
 | Subtitles | `src/subtitles/line_ass.py` | Line-at-a-time ASS writer |
 | Shot gen CLI | `scripts/generate_clip.py` | Ad-hoc clip generation |
-| Spike shots | `data/ai_gen_shots/spike_2026-05-21/` | 8 shots — ready for assembler |
+| Backfill gate | `src/topic_ingest/backfill/` | Legacy unscripted niche remediation (Issue 39) |
 
 ## Sessions
 
@@ -72,7 +72,7 @@ Implement all 10 slices of the Pivot.6 AI-generated pipeline: RSS ingest → top
 - Slice 10 operational plan — 2026-05-23
 - [issue-22-shot-normalization-tdd](.sessions/2026-05-26__issue-22-shot-normalization-tdd/handoff.md) — 2026-05-26, commit `bca0095`
 - [adr-0004-live-clip-review](.sessions/2026-05-28__adr-0004-live-clip-review/handoff.md) — 2026-05-28, sample MP4 pending operator review
-- [sample-clip-upload](.sessions/2026-05-28__sample-clip-upload/handoff.md) — 2026-05-28, YouTube `qRdVYO1Tmfw` scheduled
+- [issues-39-42-tdd](.sessions/2026-05-31__issues-39-42-tdd/handoff.md) — 2026-05-31, backfill + scheduler fix
 
 ## Open Items
 
@@ -80,5 +80,5 @@ Implement all 10 slices of the Pivot.6 AI-generated pipeline: RSS ingest → top
 - [2026-05-24] Issue 11 + Issue 14 code shipped; `gen_run.py` unattended weekly run not live-verified.
 - [2026-05-26] **Pivot.7 hybrid spike:** assembly fix shipped; live `scripts/spike_hybrid.py` run + HITL sign-off (Issue 20) pending.
 - [2026-05-28] **ADR-0004 hybrid live verify:** cost cap 250¢ (was 270); licensed fetch-and-cache resolver; sample clip uploaded (`qRdVYO1Tmfw`) but was ai_video-only, not hybrid.
-- Next: **Issue 29** T+1h/T+48h gates on `NPFJiqmd4ro` (2026-06-02). OpenRouter top-up before next clip.
+- Next: **Issue 29** T+1h ship gate **Thu 2026-06-04** on `NPFJiqmd4ro`; first scheduler weekly run Sun 2026-06-07 02:00 SGT.
 - Next grill after Slice 10 `[x]`: scripter quality (deferred from 2026-05-23 handoff).

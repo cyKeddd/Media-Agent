@@ -242,6 +242,43 @@ def test_generate_shots_called_once_per_script(tmp_path):
     assert p_fetch.call_count == 0
 
 
+def test_clips_n_caps_selection_at_default_two(tmp_path):
+    """Issue 41: >2 stage_c scripts → exactly clips_n (default 2) selected; no Kling."""
+    from src.gen_run import run_generation
+
+    repo = _new_repo(tmp_path)
+    cfg = _GenStubConfig(tmp_path)
+
+    four_scripts = [
+        _hybrid_script("s1", "T1"),
+        _hybrid_script("s2", "T2"),
+        _hybrid_script("s3", "T3"),
+        _hybrid_script("s4", "T4"),
+    ]
+
+    with patch("src.gen_run.fetch_unscripted_topics", return_value=[]), \
+         patch("src.gen_run.run_stage_a", return_value=[]), \
+         patch("src.gen_run.run_stage_b", return_value=[]), \
+         patch("src.gen_run.run_stage_c", return_value=four_scripts), \
+         patch("src.gen_run.evaluate_clip_policy", return_value=PolicyVerdict(passed=True)), \
+         patch("src.gen_run.resolve_shot_plan", return_value=([], 0)), \
+         patch("src.gen_run._generate_clip", return_value=None) as p_clip, \
+         patch("src.quality_screen.run_all", return_value=[]), \
+         patch("src.slot_planner.run_all", return_value=[]), \
+         patch("src.retention.run_all", return_value=MagicMock()), \
+         patch("src.gen_run.generate_shots") as p_gen, \
+         patch("src.gen_run.OpenRouterKlingClient") as p_kling, \
+         patch("src.gen_run.synthesize") as p_synth:
+        success, summary = run_generation(repo=repo, cfg=cfg, dry_run=True)
+
+    assert success is True
+    assert summary["stages"]["scripter_c"]["count"] == 2
+    assert p_clip.call_count == 2
+    p_gen.assert_not_called()
+    p_kling.assert_not_called()
+    p_synth.assert_not_called()
+
+
 def test_dry_run_skips_generate_shots_and_synthesize(tmp_path):
     """Under --dry-run, Kling and Edge TTS are never invoked."""
     from src.gen_run import run_generation

@@ -657,6 +657,13 @@ class Repository:
     def mark_topic_expired(self, topic_id: int) -> None:
         self.conn.execute("UPDATE topics SET status='expired' WHERE id=?", (topic_id,))
 
+    def mark_topic_rejected_off_niche(self, topic_id: int) -> None:
+        """Terminal status for legacy topics failing the on-niche gate (Issue 39)."""
+        self.conn.execute(
+            "UPDATE topics SET status='rejected_off_niche' WHERE id=? AND status='unscripted'",
+            (topic_id,),
+        )
+
     # ---- Pivot.6: scripts ----
 
     def insert_script(

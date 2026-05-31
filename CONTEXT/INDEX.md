@@ -4,7 +4,7 @@
 
 # CONTEXT Index — Media-Agent (Pivot.6)
 
-Tech/AI news YouTube Shorts pipeline. **First hybrid clip uploaded** (`NPFJiqmd4ro`, publish 2026-06-02 09:00 SGT). Issues 35–38 complete. **Next:** Issue 29 two-gate sign-off on publish day; OpenRouter top-up before next gen_run.
+Tech/AI news YouTube Shorts pipeline. **First hybrid clip uploaded** (`NPFJiqmd4ro`, publish **Thu 2026-06-04 09:00 SGT**). Issues 39–41 complete; Issue 42 partial (ship/stability gates pending). **Backfill:** 89 legacy topics rejected, 28 on-niche kept. **Schedulers:** fixed + re-registered (Sun 02:00 / daily 09:00 SGT). `human_review` ON until evidence+calendar trigger.
 
 ## Domain terminology (sharpened)
 
@@ -17,11 +17,11 @@ Tech/AI news YouTube Shorts pipeline. **First hybrid clip uploaded** (`NPFJiqmd4
 
 | Phase | File | Status | Last Updated | Summary |
 |---|---|---|---|---|
-| planning | [phase-planning.md](phase-planning.md) | in-progress | 2026-05-30 | Niche locked (Tech/AI), 10-slice plan, two-gate sign-off; finish-line roadmap (Issues 26–29); AI-niche refit (ADR-0004, Issues 30–34); **first live hybrid gen_run** (3 defect fixes + ADR-0003 refinement, Issues 35–38) |
+| planning | [phase-planning.md](phase-planning.md) | in-progress | 2026-05-31 | Niche locked (Tech/AI), 10-slice plan, two-gate sign-off; finish-line roadmap (Issues 26–29); AI-niche refit (ADR-0004, Issues 30–34); first live hybrid gen_run (Issues 35–38); **steady-state autonomy path** (backlog backfill + scheduler fix + hands-off triggers, Issues 39–42); dashboard deferred |
 | architecture | [phase-architecture.md](phase-architecture.md) | in-progress | 2026-05-27 | SQLite schema (4 Pivot.6 tables), Pydantic Config, 50+ DAL helpers, Provider ABC; **ADR-0002** assembler shot normalization; **ADR-0003** licensed-only image sourcing; **ADR-0004** AI-centric niche + ingest relevance gate |
-| development | [phase-development.md](phase-development.md) | in-progress | 2026-05-31 | First hybrid clip live + uploaded `NPFJiqmd4ro`; Issue 38 done; Issue 29 gates pending |
-| testing | [phase-testing.md](phase-testing.md) | in-progress | 2026-05-31 | Issue 35/36/37 TDD tests; licensed resolver + policy-skip + niche infra split |
-| deployment | [phase-deployment.md](phase-deployment.md) | in-progress | 2026-05-31 | Hybrid upload scheduled 2026-06-02; sample + hybrid same slot — verify Studio |
+| development | [phase-development.md](phase-development.md) | in-progress | 2026-05-31 | First hybrid live; Issues 35–38 done; **Issues 39–41 shipped** (backfill + scheduler + clips cap); Issue 42 enablement partial |
+| testing | [phase-testing.md](phase-testing.md) | in-progress | 2026-05-31 | Issue 39 backfill tests + Issue 41 clips_n regression |
+| deployment | [phase-deployment.md](phase-deployment.md) | in-progress | 2026-05-31 | Scheduler XMLs fixed + re-registered; ship gate Thu 06-04 pending |
 | review | [phase-review.md](phase-review.md) | complete | 2026-05-24 | 4-check policy gate, 6-gate quality screen, AI disclosure compliance (Slice 9), pre-flight checklist |
 
 ---

@@ -122,7 +122,7 @@ CREATE TABLE IF NOT EXISTS topics (
     source_feed        TEXT NOT NULL,
     fetched_at         TEXT NOT NULL,               -- ISO Z
     published_at       TEXT,                        -- ISO Z; from RSS pubDate; falls back to fetched_at
-    status             TEXT NOT NULL DEFAULT 'unscripted',  -- unscripted|scored|scripted|expired
+    status             TEXT NOT NULL DEFAULT 'unscripted',  -- unscripted|scored|scripted|expired|rejected_off_niche
     topic_score_json   TEXT,                        -- {novelty, specificity, tension, weighted_score, reason}
     weighted_score     REAL,                        -- denormalised for sorting
     category           TEXT                         -- one of scripter.categories

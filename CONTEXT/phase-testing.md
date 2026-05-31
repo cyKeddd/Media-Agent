@@ -34,7 +34,7 @@ Maintain a comprehensive test suite that covers all pipeline modules. Tests must
 - [2026-05-09] Phase 4.5 — policy_gate (4 checks + pure evaluator) + quality_screen (6 gates) tests.
 - [2026-05-27] Issue 33 — 8 Ken Burns argv/pure-helper tests (`tests/assembler/test_ken_burns.py`).
 - [2026-05-27] Issue 31 — 5 niche-gate unit + 2 ingest integration tests.
-- [2026-05-31] Issues 35–37 — `tests/test_hybrid_gen_run_policy.py`, updated shot_plan/fetcher/gen_run/niche tests (48 targeted green).
+- [2026-05-31] Issues 39 + 41 — 6 backfill tests + `test_clips_n_caps_selection_at_default_two` (7 new in changed files).
 
 ## Artifacts
 
@@ -47,7 +47,8 @@ Maintain a comprehensive test suite that covers all pipeline modules. Tests must
 | Scripter Stage A | `tests/test_scripter_stage_a.py` | 13 tests |
 | Scripter Stage B | `tests/test_scripter_stage_b.py` | 13 tests |
 | Scripter Stage C | `tests/test_scripter_stage_c.py` | 11 tests |
-| Orchestrator tests | `tests/test_gen_run.py` | 10 tests (Slice 8) |
+| Orchestrator tests | `tests/test_gen_run.py` | 11 tests (Slice 8 + Issue 41 clips cap) |
+| Backfill tests | `tests/test_topic_ingest_backfill.py` | 6 tests — Issue 39 |
 | Uploader tests | `tests/test_uploader_*.py` | templater, insert_body, resumable, orphan_marker, runner |
 | Policy gate tests | `tests/test_policy_*.py` | banlist, profanity, NSFW, hook_sanity, evaluator |
 | Assembler tests | `tests/assembler/test_build.py`, `test_normalize.py`, `test_assemble_mixed_res.py` | argv + lavfi ffmpeg integration |
@@ -57,7 +58,7 @@ Maintain a comprehensive test suite that covers all pipeline modules. Tests must
 - Ticket 01–05 TDD sessions (2026-05-18/2026-05-19)
 - Slice 8 + 9 test additions (2026-05-22)
 - [issue-22-shot-normalization-tdd](../.sessions/2026-05-26__issue-22-shot-normalization-tdd/handoff.md) — 2026-05-26
-- [issues-35-37-tdd](../.sessions/2026-05-31__issues-35-37-tdd/handoff.md) — 2026-05-31
+- [issues-39-42-tdd](../.sessions/2026-05-31__issues-39-42-tdd/handoff.md) — 2026-05-31
 
 ## Open Items
 

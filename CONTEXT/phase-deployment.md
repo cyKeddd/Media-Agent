@@ -1,7 +1,7 @@
 # Phase: deployment
 **Project:** Media-Agent (Pivot.6)
 **Status:** in-progress
-**Last updated:** 2026-05-28
+**Last updated:** 2026-05-31
 
 ## Objective
 
@@ -47,12 +47,13 @@ Before any real (non-`--dry-run`) invocation:
 - [2026-05-22] **Slice 8 committed:** `src/gen_run.py` commit `82ce0d1`. Task Scheduler XML points to this.
 - [2026-05-24] **Slice 10 live upload:** `9lpL8kuLX08` (Corti candidate).
 - [2026-05-28] **Post-ADR-0004 sample upload:** clip `092b3504` → YouTube `qRdVYO1Tmfw` via `src.uploader --clip-id`; scheduled `publishAt=2026-06-02T01:00:00Z` (09:00 SGT). Operator HITL approve path exercised.
+- [2026-05-31] **Issue 40 scheduler fix:** XMLs repointed to Desktop tree + `src.gen_run --clips 2`; `MediaAgentWeekly` + `MediaAgentDailyUpload` re-registered and Enabled.
 
 ## Artifacts
 
 | Artifact | Path | Notes |
 |---|---|---|
-| Weekly scheduler XML | `scripts/weekly_run.xml` | Sunday 02:00 SGT — calls gen_run.py |
+| Weekly scheduler XML | `scripts/weekly_run.xml` | Sunday 02:00 SGT — `src.gen_run --clips 2` (Desktop tree) |
 | Daily scheduler XML | `scripts/daily_upload.xml` | Daily 09:00 SGT — calls daily_upload.py |
 | OAuth setup script | `scripts/oauth_first_run.py` | One-time interactive auth |
 | Bootstrap | `src/bootstrap.py` | --check, --init-db, --smoke |
@@ -69,12 +70,12 @@ Before any real (non-`--dry-run`) invocation:
 - Phase 7 hardening live run (2026-05-09)
 - Slice 2 spike deploy (2026-05-21)
 - Slice 8/9 commit + push (2026-05-22)
-- [sample-clip-upload](.sessions/2026-05-28__sample-clip-upload/handoff.md) — 2026-05-28
+- [issues-39-42-tdd](.sessions/2026-05-31__issues-39-42-tdd/handoff.md) — 2026-05-31
 
 ## Open Items
 
 - **[BLOCKING for Slice 10]** Apply migration: `python scripts/migrate_pivot_6_3.py --dry-run` then live. Back up `data/state.db` first.
 - **[BLOCKING for Slice 10]** Assemble MP4 from 8 spike shots in `data/ai_gen_shots/spike_2026-05-21/` → `output/pending/`.
-- Task Scheduler XMLs not yet re-registered after Slice 8 rename (weekly_run.py → gen_run.py). Verify scheduled task still points to correct script.
-- GitHub remote URL needs correction: `git remote set-url origin https://github.com/VrajGupta/Media-Agent.git` (from Documents copy). Currently points to wrong user.
-- Slice 10 T+1h and T+48h gates not yet executed.
+- ~~Task Scheduler XMLs not yet re-registered~~ — **fixed 2026-05-31** (Issue 40).
+- Issue 29 ship gate **Thu 2026-06-04** on `NPFJiqmd4ro`; stability gate ~2026-06-06.
+- First unattended scheduler weekly run: **Sun 2026-06-07 02:00 SGT** (after ship gate).

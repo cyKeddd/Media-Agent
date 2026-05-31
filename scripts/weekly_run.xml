@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo>
-    <Description>Media Agent — weekly heavy run. Discovery → download → lang_detect → selector → policy_gate → editor → quality_screen → slot_planner → retention. Sundays 02:00 Asia/Singapore.</Description>
+      <Description>Media Agent — weekly generation run. topic_ingest → scripter → policy_gate → ai_gen → narration → assembler → quality_screen → slot_planner → retention. Sundays 02:00 Asia/Singapore.</Description>
     <Author>media-agent</Author>
     <URI>\MediaAgentWeekly</URI>
   </RegistrationInfo>
@@ -46,9 +46,9 @@
   </Settings>
   <Actions Context="Author">
     <Exec>
-      <Command>C:\Users\cryptix\Documents\Media-Agent-main\.venv\Scripts\python.exe</Command>
-      <Arguments>-m src.weekly_run</Arguments>
-      <WorkingDirectory>C:\Users\cryptix\Documents\Media-Agent-main</WorkingDirectory>
+      <Command>C:\Users\cryptix\Desktop\Work\Media-Agent-main\.venv\Scripts\python.exe</Command>
+      <Arguments>-m src.gen_run --clips 2</Arguments>
+      <WorkingDirectory>C:\Users\cryptix\Desktop\Work\Media-Agent-main</WorkingDirectory>
     </Exec>
   </Actions>
 </Task>

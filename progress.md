@@ -1032,4 +1032,35 @@ Fix steps: (1) confirm CUDA 12.x toolkit installed; (2) add `CUDA\v12.x\bin` to 
 - [x] Pitch fix: `config.yaml` `narration.pitch` `0Hz` → `+0Hz` (Edge TTS fallback after Kokoro miss).
 - [x] Slotted **Tue 2026-06-02 09:00 SGT** → `output/pending/2026-06-02__slot_0900__genetic_leap_reverse_aging_51fa.mp4`.
 - [x] Operator HITL: clip approved; uploaded YouTube **`NPFJiqmd4ro`** (`publishAt=2026-06-02T01:00:00Z`, `containsSyntheticMedia`, copy in `output/approved/`).
-- [ ] Issue 29 ship gates: T+1h Studio spot-check + T+48h stability on `NPFJiqmd4ro`.
+- [ ] Issue 29 ship gates: T+1h Studio spot-check + T+48h stability on `NPFJiqmd4ro` (scheduled **Thu 2026-06-04 09:00 SGT**).
+
+### Steady-state autonomous cadence (Issues 39–42) · 2026-05-31
+
+#### Issue 39 — Backfill-gate legacy backlog · complete
+- [x] `src/topic_ingest/backfill/` module + CLI (`python -m src.topic_ingest.backfill [--dry-run]`).
+- [x] `rejected_off_niche` terminal status + `Repository.mark_topic_rejected_off_niche()`.
+- [x] Dry-run preview (2026-05-31): kept=29 rejected=88 infra_skipped=0.
+- [x] **Live backfill** (2026-05-31): kept=28 rejected=89 infra_skipped=0 → DB now `unscripted=28`, `rejected_off_niche=89`, `scripted=13`.
+- [x] Tests: `tests/test_topic_ingest_backfill.py` (6 tests, injected classifier only).
+
+#### Issue 40 — Fix + re-register Task Scheduler tasks · complete
+- [x] `scripts/weekly_run.xml`: `-m src.gen_run --clips 2`, Desktop `.venv` path.
+- [x] `scripts/daily_upload.xml`: Desktop `.venv` path.
+- [x] Re-registered `MediaAgentWeekly` + `MediaAgentDailyUpload` via `schtasks /Create /F`.
+- [x] Triggers confirmed: weekly **Sun 02:00 SGT**; daily **09:00 SGT**.
+- [x] Weekly command dry-run: no `ModuleNotFoundError`; runs from Desktop tree.
+
+#### Issue 41 — Pin weekly 2-clip count · complete
+- [x] Regression test `test_clips_n_caps_selection_at_default_two` — 4 stage_c scripts → exactly 2 selected; no Kling/render.
+- [x] Default `--clips 2` unchanged in `gen_run.py`.
+
+#### Issue 42 — Enable autonomous cadence + hands-off sequencing · partial (HITL gates pending)
+- [ ] **Prereq 1 — Ship gate** on `NPFJiqmd4ro`: T+1h Studio check **Thu 2026-06-04** (Issue 29). Blocks full schedule trust.
+- [x] **Prereq 2 — OpenRouter funded:** auto-top-up ON (2026-05-31); caps unchanged (`per_clip_cost_cents_max: 250`, `daily_spend_cents_ceiling: 500`).
+- [x] **Prereq 3 — Backfill:** Issue 39 live run complete (evidence above).
+- [x] **Prereq 4 — Scheduler:** Issue 40 complete; both tasks **Enabled**.
+- [x] **Prereq 5 — Dry-run budget proof:** `gen_run --dry-run --clips 2` exit 0; `scripter_c.count=2`, zero OpenRouter spend (2026-05-31).
+- [x] **`human_review: true`** confirmed in `config.yaml` — stays ON until hands-off trigger met.
+- [ ] **Stability gate (T+48h ~2026-06-06):** monitor in parallel; outcome not yet recorded.
+- [ ] **Hands-off trigger:** requires (a) stability gate pass + (b) ≥2 clean scheduler-driven weekly cycles + (c) ≥2 weeks since first hybrid ship (floor **2026-06-18**). `human_review` remains **true**.
+- [ ] Recommend Issue 43 (cumulative per-clip spend ceiling) before hands-off flip.
