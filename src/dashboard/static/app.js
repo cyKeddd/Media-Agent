@@ -5,16 +5,34 @@ let pollTimer = null;
 const POLL_MS = 30000;
 
 async function loadView() {
-  document.getElementById('status').textContent = 'Loading…';
-  const resp = await fetch('/api/view');
-  viewData = await resp.json();
-  renderHealth();
-  renderReviewQueue();
-  renderCalendar();
-  renderAlerts();
-  renderUploaded();
-  document.getElementById('status').textContent =
-    'Updated ' + new Date().toLocaleTimeString();
+  const statusEl = document.getElementById('status');
+  statusEl.textContent = 'Loading…';
+  try {
+    const resp = await fetch('/api/view');
+    if (!resp.ok) {
+      statusEl.textContent = `API error ${resp.status} — check the terminal running the dashboard`;
+      return;
+    }
+    viewData = await resp.json();
+    if (!viewData.health) {
+      statusEl.textContent =
+        'Dashboard server is outdated. Stop the old process, then run: python -m src.dashboard';
+      document.getElementById('health-band').innerHTML =
+        '<div class="tile overall failed"><div class="label">Action required</div>' +
+        '<div class="value">Restart server</div>' +
+        '<div class="detail">Port 8765 is still running v1. Kill that window/process, start again from the project folder.</div></div>';
+      return;
+    }
+    renderHealth();
+    renderReviewQueue();
+    renderCalendar();
+    renderAlerts();
+    renderUploaded();
+    statusEl.textContent = 'Updated ' + new Date().toLocaleTimeString();
+  } catch (err) {
+    statusEl.textContent = 'Failed to load: ' + (err.message || err);
+    console.error(err);
+  }
 }
 
 function renderHealth() {
