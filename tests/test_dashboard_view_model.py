@@ -63,6 +63,13 @@ class FakeReader:
     def quota_script_total(self, script_id: str) -> int:
         return self.script_totals.get(script_id, 0)
 
+    def latest_runs(self):
+        from src.dashboard.run_reader import RunSnapshot
+        return {
+            "generation": RunSnapshot(kind="generation", present=False),
+            "daily": RunSnapshot(kind="daily", present=False),
+        }
+
 
 def _caps():
     return SimpleNamespace(per_clip_cost_cents_max=250, daily_spend_cents_ceiling=500)

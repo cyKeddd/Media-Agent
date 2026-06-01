@@ -1,7 +1,7 @@
 # Phase: planning
 **Project:** Media-Agent (Pivot.6 → Pivot.7)
 **Status:** in-progress
-**Last updated:** 2026-05-30
+**Last updated:** 2026-06-01
 
 ## Objective
 
@@ -50,6 +50,7 @@ Lock the niche, content format, budget, weekly cadence, and tech stack direction
 - **[2026-05-31] `human_review` true→false trigger = evidence-based + calendar floor:** flip only when (a) first-hybrid stability gate passed, (b) ≥2 scheduler-driven weekly `gen_run` cycles reviewed with zero off-niche/policy/quality rejections, AND (c) ≥2 weeks elapsed since first hybrid ship (06-04). Calendar "2 weeks" is a floor, not the trigger.
 - **[2026-05-31] Task Scheduler defects (block autonomy):** (a) `weekly_run.xml` runs stale `-m src.weekly_run` → must be `src.gen_run`; (b) both XMLs point at the stale `Documents\Media-Agent-main` repo copy, not the live `Desktop\Work\Media-Agent-main`; (c) verify a weekly run produces exactly **2 clips** (weekday allocator as count authority), not `clips_per_day×days_per_run=7`.
 - **[2026-05-31] OpenRouter top-up = $20, done; auto-top-up now ON.** Balance is no longer a spend backstop — the config caps are the sole guardrail. Hard limit **2.5 credits (250¢)/video** (`per_clip_cost_cents_max: 250`) + `daily_spend_cents_ceiling: 500`, both unchanged; do not raise without approval. Watch retry double-billing on a single clip (the 252¢ reverse-aging retry already exceeded the 250¢ projection).
+- **[2026-06-01] Dashboard "v2" scope locked (grill → PRD → Issues 47–50).** "v2" = **health-first visual redesign + in-UI approve/reject**, bundling the previously-deferred approve write-path with the redesign. Reschedule/trigger/edit + LAN + next-run countdown → **v3**. Decisions D1–D8: (D2/ADR-0006) approve/reject **moves files only** (`pending↔approved/rejected`), no DB write, `daily_upload` contract unchanged; (D3) primary job = **monitor Pipeline health** from the `runs` table + `logs/alerts.md` (both unused by v1) — latest gen_run/daily **Run** tiles, alerts feed, spend/queue, derived overall status; (D4/ADR-0005) **dependency-light** frontend, FastAPI + static + CSS design system, **no Node/build**; (D5) auto-poll ~30s + manual; (D6) action safety = confirm + server validation (pending-only, atomic `os.replace`), reject reversible; (D7) controls shown **only while `human_review` on**, else read-only banner; (D8) **command-center** dark layout. Glossary gained **Run / Pipeline health / Alert / Approve-Reject action**; "v2" version ambiguity resolved. No code written.
 
 ## Accomplishments
 
@@ -69,6 +70,7 @@ Lock the niche, content format, budget, weekly cadence, and tech stack direction
 - [2026-05-30] /grill-with-docs → /to-prd → /to-issues: root-caused the 3 hybrid-`gen_run` blockers against code (probe/fetch asymmetry, niche infra/off_niche conflation, misfit legacy policy gate); locked 6 decisions; refined ADR-0003 (degrade decision on a fetched+validated asset); published PRD `first-live-hybrid-gen-run` + Issues 35–38. No code written.
 - [2026-05-31] /grill-with-docs → /to-prd → /to-issues: root-caused the off-niche reverse-aging clip to a 112-topic pre-gate backlog (not a classifier bug); locked S1–S7 (slot dedup, backfill-gate, scheduler XML fixes, enable trigger, evidence+floor hands-off, $20 top-up); published PRD `steady-state-autonomous-cadence` + Issues 39–42. Dashboard captured as next-up follow-on. No code written.
 - [2026-05-31] /grill-with-docs → /to-prd → /to-issues: locked the **web review/calendar dashboard v1** (D1–D5: read-only viewer + calendar + preview; FastAPI + static page on 127.0.0.1; pure view-model deep module; derived **Review stage**; four sections). Added **Review stage** to the glossary; verified `quota_usage.script_id` self-migrates (per-clip cost works). Published PRD `web-review-calendar-dashboard` + Issues 44–46. v2 = approve action, v3+ = control panel + LAN/token. No code written.
+- [2026-06-01] /grill-with-docs → /to-prd → /to-issues → /handoff: locked **dashboard v2** (health-first redesign + in-UI approve/reject; D1–D8). Resolved the "v2" naming collision (now = redesign + write path; controls/LAN → v3). Found the `runs` table + `logs/alerts.md` go unused by v1 → basis for the health band. Wrote **ADR-0005** (no-SPA/no-build frontend) + **ADR-0006** (approve/reject moves files only). Added glossary terms **Run / Pipeline health / Alert / Approve-Reject action**. Published PRD `dashboard-v2-health-first-redesign` + Issues 47–50 (all AFK; tests M1–M5). No code written.
 
 ## Artifacts
 
@@ -94,6 +96,10 @@ Lock the niche, content format, budget, weekly cadence, and tech stack direction
 | Grill record (steady-state) | `CONTEXT/Grilling/2026-05-31-steady-state-autonomy.md` | S1–S7 decisions of record |
 | Dashboard PRD (v1) | `docs/prds/web-review-calendar-dashboard.md` | Issues 44–46; `ready-for-agent` |
 | Grill record (dashboard) | `CONTEXT/Grilling/2026-05-31-web-review-dashboard.md` | D1–D5 decisions of record |
+| Dashboard v2 PRD | `docs/prds/dashboard-v2-health-first-redesign.md` | Issues 47–50; `ready-for-agent` |
+| Grill record (dashboard v2) | `CONTEXT/Grilling/2026-06-01-dashboard-v2-redesign.md` | D1–D8 decisions of record |
+| ADR-0005 | `docs/adr/0005-dashboard-dependency-light-frontend.md` | No SPA / no build step |
+| ADR-0006 | `docs/adr/0006-dashboard-approve-reject-moves-files-only.md` | Approve/reject moves files only |
 
 ## Sessions
 
@@ -106,6 +112,7 @@ Lock the niche, content format, budget, weekly cadence, and tech stack direction
 - First live hybrid gen_run (2026-05-30) — `.sessions/2026-05-30__hybrid-gen-run-finish-line/handoff.md`
 - Steady-state autonomy grill (2026-05-31) — `.sessions/2026-05-31__steady-state-autonomy-grill/handoff.md`
 - Web review/calendar dashboard grill (2026-05-31) — `.sessions/2026-05-31__web-dashboard-grill/handoff.md`
+- Dashboard v2 grill → PRD → issues (2026-06-01) — `.sessions/2026-06-01__dashboard-v2-grill-prd-issues/handoff.md`
 
 ## Open Items
 
@@ -116,3 +123,4 @@ Lock the niche, content format, budget, weekly cadence, and tech stack direction
 - **First live hybrid gen_run (Issues 35–38) planned (2026-05-30), not started.** Path: Issue 35 (resolve fetches-and-caches + cap 250¢, AFK) → Issue 36 (niche infra split, AFK) → Issue 37 (pre-billing narration policy, AFK, blocked by 35) → Issue 38 (live `gen_run` verify + HITL, supersedes Issue 20). No code written yet; `config.yaml` cap still 270.
 - **Steady-state autonomy path (Issues 39–43) planned (2026-05-31), not started.** Path: Issue 39 (backfill-gate the 112-topic pre-gate backlog, AFK) + Issue 40 (fix/re-register scheduler XMLs, HITL) + Issue 41 (pin 2-clip count, AFK) → Issue 42 (enable schedule + hands-off sequencing, HITL; blocked by 39/40/41 + Issue 29 ship gate). Issue 43 (cumulative per-clip spend ceiling + shot-reuse-on-retry, AFK) — recommended before the hands-off flip since auto-top-up removed the balance backstop. Web review/calendar dashboard = explicit next-up follow-on, deferred (own grill/PRD).
 - **Deferred (now retired as wrong fix):** niche-classifier prompt retune — the off-niche leak was a pre-gate backlog, not the prompt (see Issue 39). Scripter-framing drift logged as a deferred scripter-quality follow-up.
+- **Dashboard v2 (Issues 47–50) complete (2026-06-01).** Health band, alerts feed, command-center layout, in-UI approve/reject (ADR-0005/0006); 31 tests green. Optional follow-up: `daily_upload` → `runs` table for daily health tile. v3 deferred: reschedule/trigger/edit, LAN+token, next-run countdown.

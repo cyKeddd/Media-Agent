@@ -10,8 +10,15 @@ from pathlib import Path
 from typing import Any, Protocol
 from zoneinfo import ZoneInfo
 
+from src.dashboard.run_reader import RunSnapshot
 from src.dashboard.scanner import ScanResult
 from src.editor.slug import title_slug
+
+
+class PipelineStatus(str, Enum):
+    healthy = "healthy"
+    degraded = "degraded"
+    failed = "failed"
 
 
 class ReviewStage(str, Enum):
@@ -28,6 +35,7 @@ class DashboardReader(Protocol):
     def quota_today_total(self, *, provider: str | None = None) -> int: ...
     def quota_week_total(self, *, provider: str | None = None) -> int: ...
     def quota_script_total(self, script_id: str) -> int: ...
+    def latest_runs(self) -> dict[str, RunSnapshot]: ...
 
 
 @dataclass(frozen=True)
@@ -87,12 +95,47 @@ class HeaderView:
 
 
 @dataclass(frozen=True)
+class RunTileView:
+    kind: str
+    present: bool
+    started_at: str | None
+    finished_at: str | None
+    success: bool | None
+    label: str
+    detail: str | None
+    error: str | None
+
+
+@dataclass(frozen=True)
+class AlertView:
+    timestamp: str
+    kind: str
+    message: str
+    severity: str
+
+
+@dataclass(frozen=True)
+class HealthView:
+    overall_status: PipelineStatus
+    generation_run: RunTileView
+    daily_run: RunTileView
+    spend_today_cents: int
+    spend_week_cents: int
+    per_clip_cap_cents: int
+    daily_cap_cents: int
+    unscripted_topics: int
+    alerts: list[AlertView]
+
+
+@dataclass(frozen=True)
 class DashboardView:
     clips: list[ClipView]
     review_queue: list[ReviewQueueItem]
     calendar_by_date: dict[str, list[CalendarEntry]]
     uploaded: list[UploadedItem]
     header: HeaderView
+    health: HealthView
+    human_review: bool = True
 
 
 def _row_get(row: Any, key: str, default: Any = None) -> Any:
@@ -172,6 +215,74 @@ def _local_time(iso_utc: str, tz: ZoneInfo) -> str:
     return dt.astimezone(tz).strftime("%H:%M")
 
 
+def _run_tile(snapshot: RunSnapshot) -> RunTileView:
+    if not snapshot.present:
+        return RunTileView(
+            kind=snapshot.kind,
+            present=False,
+            started_at=None,
+            finished_at=None,
+            success=None,
+            label="Not yet run",
+            detail=None,
+            error=None,
+        )
+    if snapshot.finished and snapshot.success is False:
+        label = "Failed"
+        detail = snapshot.error
+    elif not snapshot.finished:
+        label = "In progress"
+        detail = None
+    else:
+        label = "OK"
+        detail = _run_success_detail(snapshot)
+    return RunTileView(
+        kind=snapshot.kind,
+        present=True,
+        started_at=snapshot.started_at,
+        finished_at=snapshot.finished_at,
+        success=snapshot.success,
+        label=label,
+        detail=detail,
+        error=snapshot.error if snapshot.failed else None,
+    )
+
+
+def _run_success_detail(snapshot: RunSnapshot) -> str | None:
+    summary = snapshot.summary or {}
+    if snapshot.kind == "daily":
+        if "uploaded" in summary:
+            return f"uploaded={summary['uploaded']}"
+        if summary.get("message") == "no_candidates":
+            return "no_candidates"
+        return None
+    stages = summary.get("stages")
+    if isinstance(stages, dict) and stages:
+        parts = []
+        for name, val in stages.items():
+            if isinstance(val, dict) and "count" in val:
+                parts.append(f"{name}={val['count']}")
+            else:
+                parts.append(name)
+        return ", ".join(parts[:6]) if parts else None
+    return None
+
+
+def derive_overall_status(
+    *,
+    generation: RunSnapshot,
+    daily: RunSnapshot,
+    alerts: list[AlertView],
+) -> PipelineStatus:
+    if generation.failed or daily.failed:
+        return PipelineStatus.failed
+    if any(a.severity == "warning" for a in alerts):
+        return PipelineStatus.degraded
+    if any(a.severity == "error" for a in alerts):
+        return PipelineStatus.failed
+    return PipelineStatus.healthy
+
+
 def build_dashboard_view(
     reader: DashboardReader,
     scan: ScanResult,
@@ -180,6 +291,8 @@ def build_dashboard_view(
     tz: ZoneInfo,
     ai_gen: Any,
     output_root: Path | None = None,
+    recent_alerts: list[AlertView] | None = None,
+    human_review: bool = True,
 ) -> DashboardView:
     """Assemble the four dashboard sections from injected read dependencies."""
     clip_views: list[ClipView] = []
@@ -290,13 +403,39 @@ def build_dashboard_view(
                 )
             )
 
+    spend_today = reader.quota_today_total(provider="openrouter")
+    spend_week = reader.quota_week_total(provider="openrouter")
+    per_clip_cap = int(ai_gen.per_clip_cost_cents_max)
+    daily_cap = int(ai_gen.daily_spend_cents_ceiling)
+    unscripted = reader.count_topics_by_status("unscripted")
+
     header = HeaderView(
         stage_counts=stage_counts,
-        spend_today_cents=reader.quota_today_total(provider="openrouter"),
-        spend_week_cents=reader.quota_week_total(provider="openrouter"),
-        per_clip_cap_cents=int(ai_gen.per_clip_cost_cents_max),
-        daily_cap_cents=int(ai_gen.daily_spend_cents_ceiling),
-        unscripted_topics=reader.count_topics_by_status("unscripted"),
+        spend_today_cents=spend_today,
+        spend_week_cents=spend_week,
+        per_clip_cap_cents=per_clip_cap,
+        daily_cap_cents=daily_cap,
+        unscripted_topics=unscripted,
+    )
+
+    runs = reader.latest_runs()
+    gen_snap = runs.get("generation") or RunSnapshot(kind="generation", present=False)
+    daily_snap = runs.get("daily") or RunSnapshot(kind="daily", present=False)
+    alert_views = list(recent_alerts or [])
+    health = HealthView(
+        overall_status=derive_overall_status(
+            generation=gen_snap,
+            daily=daily_snap,
+            alerts=alert_views,
+        ),
+        generation_run=_run_tile(gen_snap),
+        daily_run=_run_tile(daily_snap),
+        spend_today_cents=spend_today,
+        spend_week_cents=spend_week,
+        per_clip_cap_cents=per_clip_cap,
+        daily_cap_cents=daily_cap,
+        unscripted_topics=unscripted,
+        alerts=alert_views,
     )
 
     return DashboardView(
@@ -305,6 +444,8 @@ def build_dashboard_view(
         calendar_by_date=calendar_by_date,
         uploaded=uploaded,
         header=header,
+        health=health,
+        human_review=human_review,
     )
 
 
@@ -314,7 +455,39 @@ def view_to_json(view: DashboardView) -> dict:
     def _stage(s: ReviewStage) -> str:
         return s.value
 
+    def _run_tile_json(t: RunTileView) -> dict:
+        return {
+            "kind": t.kind,
+            "present": t.present,
+            "started_at": t.started_at,
+            "finished_at": t.finished_at,
+            "success": t.success,
+            "label": t.label,
+            "detail": t.detail,
+            "error": t.error,
+        }
+
     return {
+        "human_review": view.human_review,
+        "health": {
+            "overall_status": view.health.overall_status.value,
+            "generation_run": _run_tile_json(view.health.generation_run),
+            "daily_run": _run_tile_json(view.health.daily_run),
+            "spend_today_cents": view.health.spend_today_cents,
+            "spend_week_cents": view.health.spend_week_cents,
+            "per_clip_cap_cents": view.health.per_clip_cap_cents,
+            "daily_cap_cents": view.health.daily_cap_cents,
+            "unscripted_topics": view.health.unscripted_topics,
+            "alerts": [
+                {
+                    "timestamp": a.timestamp,
+                    "kind": a.kind,
+                    "message": a.message,
+                    "severity": a.severity,
+                }
+                for a in view.health.alerts
+            ],
+        },
         "review_queue": [
             {
                 "clip_id": i.clip_id,

@@ -1,7 +1,7 @@
 # Phase: testing
 **Project:** Media-Agent (Pivot.6)
 **Status:** in-progress
-**Last updated:** 2026-05-31
+**Last updated:** 2026-06-01
 
 ## Objective
 
@@ -36,6 +36,7 @@ Maintain a comprehensive test suite that covers all pipeline modules. Tests must
 - [2026-05-27] Issue 31 — 5 niche-gate unit + 2 ingest integration tests.
 - [2026-05-31] Issue 43 — 6 clip-spend-ceiling tests (`tests/test_clip_spend_ceiling.py`).
 - [2026-05-31] Issues 44–46 — 16 dashboard tests (`tests/test_dashboard_scanner.py`, `test_dashboard_view_model.py`, `test_dashboard_app.py`).
+- [2026-06-01] Issues 47–50 — 31 dashboard tests (+ run reader, health, alerts, review-action, POST smoke).
 
 ## Artifacts
 
@@ -51,7 +52,7 @@ Maintain a comprehensive test suite that covers all pipeline modules. Tests must
 | Orchestrator tests | `tests/test_gen_run.py` | 11 tests (Slice 8 + Issue 41 clips cap) |
 | Backfill tests | `tests/test_topic_ingest_backfill.py` | 6 tests — Issue 39 |
 | Clip spend tests | `tests/test_clip_spend_ceiling.py` | 6 tests — Issue 43 |
-| Dashboard tests | `tests/test_dashboard_*.py` | 16 tests — Issues 44–46 |
+| Dashboard tests | `tests/test_dashboard_*.py` | 31 tests — Issues 44–50 |
 | Uploader tests | `tests/test_uploader_*.py` | templater, insert_body, resumable, orphan_marker, runner |
 | Policy gate tests | `tests/test_policy_*.py` | banlist, profanity, NSFW, hook_sanity, evaluator |
 | Assembler tests | `tests/assembler/test_build.py`, `test_normalize.py`, `test_assemble_mixed_res.py` | argv + lavfi ffmpeg integration |
@@ -62,6 +63,7 @@ Maintain a comprehensive test suite that covers all pipeline modules. Tests must
 - Slice 8 + 9 test additions (2026-05-22)
 - [issue-22-shot-normalization-tdd](../.sessions/2026-05-26__issue-22-shot-normalization-tdd/handoff.md) — 2026-05-26
 - [issues-39-42-tdd](../.sessions/2026-05-31__issues-39-42-tdd/handoff.md) — 2026-05-31
+- [issues-47-50-dashboard-v2-tdd](../.sessions/2026-06-01__issues-47-50-dashboard-v2-tdd/handoff.md) — 2026-06-01
 - [issues-44-46-dashboard-tdd](../.sessions/2026-05-31__issues-44-46-dashboard-tdd/handoff.md) — 2026-05-31
 
 ## Open Items

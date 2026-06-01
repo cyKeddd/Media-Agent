@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from src.dashboard.app import create_app
+from src.dashboard.run_reader import latest_run_per_kind
 from src.dashboard.view_model import DashboardReader
 
 
@@ -26,6 +27,9 @@ class RepositoryDashboardReader:
 
     def quota_script_total(self, script_id: str) -> int:
         return self._repo.quota_script_total(script_id)
+
+    def latest_runs(self):
+        return latest_run_per_kind(self._repo.conn)
 
 
 def build_reader(repo) -> DashboardReader:

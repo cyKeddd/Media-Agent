@@ -1078,3 +1078,10 @@ Fix steps: (1) confirm CUDA 12.x toolkit installed; (2) add `CUDA\v12.x\bin` to 
 - [x] Repository read helpers: `list_dashboard_clips()`, `count_topics_by_status()`, `quota_week_total()`.
 - [x] Tests: `tests/test_dashboard_scanner.py` (5), `tests/test_dashboard_view_model.py` (8), `tests/test_dashboard_app.py` (3) — 16 green.
 - [x] Deps: `fastapi`, `uvicorn`, `httpx` added to `requirements.txt`.
+
+### Dashboard v2 — health-first + approve/reject (Issues 47–50) · complete (2026-06-01)
+- [x] **Issue 47** — Command-center layout (`static/styles.css`, `static/app.js`); `run_reader.py` (latest Run per `generation`/`daily`); `health` section in view-model with derived Pipeline status; ~30s auto-poll + Refresh.
+- [x] **Issue 48** — `alerts_parser.py` (mixed `alerts.md` formats, kind→severity); alerts rail + degraded status on warning-level alerts.
+- [x] **Issue 49** — Work-area two-column layout (review queue + large preview left, calendar right); uploaded list collapsed in `<details>`; design-system cards/semantic colors (ADR-0005).
+- [x] **Issue 50** — `review_action.py` (approve/reject/unreject, pending-only, atomic `os.replace`, no DB); POST `/api/clip/{id}/approve|reject|unreject` gated on `human_review` + `confirm`; UI confirm step (ADR-0006).
+- [x] Tests: `test_dashboard_run_reader.py` (3), `test_dashboard_health.py` (3), `test_dashboard_alerts_parser.py` (3), `test_dashboard_review_action.py` (4), `test_dashboard_app.py` (5) — **31 dashboard tests green** (was 16).

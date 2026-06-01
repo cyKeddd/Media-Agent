@@ -6,6 +6,8 @@ where the work is at a glance.
 
 | Date | Session folder | Summary | Next action |
 |---|---|---|---|
+| 2026-06-01 | [issues-47-50-dashboard-v2-tdd](2026-06-01__issues-47-50-dashboard-v2-tdd/handoff.md) | TDD Issues 47–50: dashboard v2 health band, alerts feed, command-center layout, approve/reject write path; 31 tests green | Eyeball v2 at `127.0.0.1:8765`; approve a pending clip from UI |
+| 2026-06-01 | [dashboard-v2-grill-prd-issues](2026-06-01__dashboard-v2-grill-prd-issues/handoff.md) | Grill→PRD→Issues for dashboard **v2** (health-first redesign + in-UI approve/reject); resolved "v2" naming collision; found `runs`+`alerts.md` unused by v1; ADR-0005/0006; PRD + Issues 47–50 (no code) | *(superseded by 47–50 TDD)* |
 | 2026-05-31 | [dashboard-startup-fix](2026-05-31__dashboard-startup-fix/handoff.md) | Fixed dashboard startup (legacy DB migration + SQLite thread safety); ERR -102 resolved | Eyeball dashboard OR Thu 06-04 ship gate on `NPFJiqmd4ro` |
 | 2026-05-31 | [issues-44-46-dashboard-tdd](2026-05-31__issues-44-46-dashboard-tdd/handoff.md) | TDD Issues 44–46: read-only web dashboard v1 (FastAPI + view-model + 16 tests) | *(superseded by startup fix)* |
 | 2026-05-31 | [web-dashboard-grill](2026-05-31__web-dashboard-grill/handoff.md) | Grill→PRD→Issues for web review/calendar dashboard v1 (read-only); FastAPI + pure view-model; derived Review stage; PRD + Issues 44–46 (no code) | *(superseded by 44–46 TDD)* |
