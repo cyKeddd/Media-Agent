@@ -17,11 +17,11 @@ Tech/AI news YouTube Shorts pipeline. Issues 39–41 + **43** complete; Issue 42
 
 | Phase | File | Status | Last Updated | Summary |
 |---|---|---|---|---|
-| planning | [phase-planning.md](phase-planning.md) | in-progress | 2026-06-06 | Niche locked (Tech/AI), 10-slice plan, two-gate sign-off; finish-line roadmap (Issues 26–29); AI-niche refit (ADR-0004, Issues 30–34); first live hybrid gen_run (Issues 35–38); steady-state autonomy path (Issues 39–43); web review/calendar dashboard v1 (Issues 44–46); dashboard v2 health-first redesign + approve/reject (ADR-0005/0006; Issues 47–50); **Issues 51–57 shipped** (daily Run row, retention basename sweep, dashboard v3.1 overrides, Hermes consume-side); **Issue 58 HITL pending** |
+| planning | [phase-planning.md](phase-planning.md) | in-progress | 2026-06-06 | Niche locked (Tech/AI), 10-slice plan, two-gate sign-off; finish-line roadmap (Issues 26–29); AI-niche refit (ADR-0004, Issues 30–34); first live hybrid gen_run (Issues 35–38); steady-state autonomy path (Issues 39–43); web review/calendar dashboard v1 (Issues 44–46); dashboard v2 health-first redesign + approve/reject (ADR-0005/0006; Issues 47–50); **Issues 51–57 shipped**; **Issue 58 partial** (first Directed script in DB) |
 | architecture | [phase-architecture.md](phase-architecture.md) | in-progress | 2026-05-27 | SQLite schema (4 Pivot.6 tables), Pydantic Config, 50+ DAL helpers, Provider ABC; **ADR-0002** assembler shot normalization; **ADR-0003** licensed-only image sourcing; **ADR-0004** AI-centric niche + ingest relevance gate |
 | development | [phase-development.md](phase-development.md) | in-progress | 2026-06-06 | Issues 39–41 + 43 shipped; **Issues 47–50 dashboard v2**; **Issues 51–57 post-v2 backlog**; Issue 42 enablement partial |
 | testing | [phase-testing.md](phase-testing.md) | in-progress | 2026-06-06 | Issue 39 backfill + dashboard tests (31 v2 + **30 for Issues 51–57**) |
-| deployment | [phase-deployment.md](phase-deployment.md) | in-progress | 2026-05-31 | Scheduler XMLs fixed + re-registered; ship gate Thu 06-04 pending |
+| deployment | [phase-deployment.md](phase-deployment.md) | in-progress | 2026-06-06 | Scheduler XMLs fixed; Hermes director first Directed script; `gen_run` E2E + Hermes cron pending |
 | review | [phase-review.md](phase-review.md) | complete | 2026-05-24 | 4-check policy gate, 6-gate quality screen, AI disclosure compliance (Slice 9), pre-flight checklist |
 
 ---

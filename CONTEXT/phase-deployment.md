@@ -1,7 +1,7 @@
 # Phase: deployment
 **Project:** Media-Agent (Pivot.6)
 **Status:** in-progress
-**Last updated:** 2026-05-31
+**Last updated:** 2026-06-06
 
 ## Objective
 
@@ -20,6 +20,7 @@ Bootstrap the runtime environment, wire up Windows Task Scheduler for fire-and-f
 - **Secrets:** `data/client_secret.json` (Google OAuth), `data/oauth_token.json` (refresh token), `.env` (OPENROUTER_API_KEY). All gitignored. `.env.example` committed.
 - **Quota ceiling:** `youtube_quota_ceiling_units: 9000` (conservative below 10,000 free tier). `videos_insert_unit_cost: 1600`.
 - **NVENC requirement:** ffmpeg must be compiled with `--enable-nvenc`. CUDA 12.x required. Verified in bootstrap `--check`.
+- **Hermes director (ADR-0008):** Nous Hermes Agent at `%LOCALAPPDATA%\hermes\` authors **Directed scripts** in `data/state.db` via `execute_code`. Runs **before** Sunday `gen_run`; does **not** take `data/.weekly_run.lock`. Does **not** run `gen_run` — operator or Task Scheduler does. Contract: `docs/hermes-director-contract.md`.
 
 ---
 
@@ -48,6 +49,7 @@ Before any real (non-`--dry-run`) invocation:
 - [2026-05-24] **Slice 10 live upload:** `9lpL8kuLX08` (Corti candidate).
 - [2026-05-28] **Post-ADR-0004 sample upload:** clip `092b3504` → YouTube `qRdVYO1Tmfw` via `src.uploader --clip-id`; scheduled `publishAt=2026-06-02T01:00:00Z` (09:00 SGT). Operator HITL approve path exercised.
 - [2026-05-31] **Issue 40 scheduler fix:** XMLs repointed to Desktop tree + `src.gen_run --clips 2`; `MediaAgentWeekly` + `MediaAgentDailyUpload` re-registered and Enabled.
+- [2026-06-06] **Hermes director first run:** Directed script `ebba0850-7d30-4ee5-aee6-8f50ffc6d18a` (topic 130, Gemini Omni) inserted; topic claimed. `gen_run` consume pending operator PowerShell run.
 
 ## Artifacts
 
@@ -71,9 +73,11 @@ Before any real (non-`--dry-run`) invocation:
 - Slice 2 spike deploy (2026-05-21)
 - Slice 8/9 commit + push (2026-05-22)
 - [issues-39-42-tdd](.sessions/2026-05-31__issues-39-42-tdd/handoff.md) — 2026-05-31
+- [hermes-director-first-directed-script](../.sessions/2026-06-06__hermes-director-first-directed-script/handoff.md) — 2026-06-06
 
 ## Open Items
 
+- **Issue 58 E2E** — Run `python -m src.gen_run --clips 1` to consume directed script `ebba0850-…`; then schedule Hermes cron (Saturday SGT).
 - **[BLOCKING for Slice 10]** Apply migration: `python scripts/migrate_pivot_6_3.py --dry-run` then live. Back up `data/state.db` first.
 - **[BLOCKING for Slice 10]** Assemble MP4 from 8 spike shots in `data/ai_gen_shots/spike_2026-05-21/` → `output/pending/`.
 - ~~Task Scheduler XMLs not yet re-registered~~ — **fixed 2026-05-31** (Issue 40).

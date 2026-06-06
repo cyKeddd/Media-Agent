@@ -1094,5 +1094,5 @@ Fix steps: (1) confirm CUDA 12.x toolkit installed; (2) add `CUDA\v12.x\bin` to 
 - [x] **Issue 55** — `clip_mutation.py` + `POST /api/clip/{id}/reschedule` (run-lock `409`, DB-first+rename, collision warning).
 - [x] **Issue 56** — `plan_edit_title` + `POST /api/clip/{id}/edit-title` (hook+suggested_title+slug rename).
 - [x] **Issue 57** — `scripts.status='directed'`; `scripts_awaiting_narration()` + narration-only `run_stage_b` branch; `docs/hermes-director-contract.md` (ADR-0008).
-- [ ] **Issue 58 (HITL)** — Hermes Agent install + first directed script end-to-end (operator task).
+- [~] **Issue 58 (HITL)** — Hermes installed (Nous `nemotron-3-ultra:free`); first **Directed script** written (`ebba0850-7d30-4ee5-aee6-8f50ffc6d18a`, topic 130). **Pending:** `gen_run` E2E render + Hermes cron before Sunday `gen_run`.
 - [x] Tests: +30 across `test_daily_upload_run_row`, `test_retention_output_copies`, `test_dashboard_basename_resolve`, `test_dashboard_next_run`, `test_dashboard_clip_mutation`, `test_scripter_directed` — **61 green** in issue batch.
