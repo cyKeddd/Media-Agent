@@ -19,6 +19,7 @@ Reuses Phase 5's runner-startup orphan reconcile gate as the first step.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sqlite3
 import sys
@@ -105,6 +106,26 @@ def reconcile_approvals(
     return flipped
 
 
+def build_daily_run_summary(
+    results: list | None = None,
+    *,
+    error: str | None = None,
+    no_candidates: bool = False,
+) -> dict:
+    """Map daily upload outcomes to the JSON shape the dashboard reads."""
+    if error:
+        return {"error": error}
+    if no_candidates:
+        return {"message": "no_candidates"}
+    from src.uploader.runner import UploadOutcome
+
+    uploaded = sum(
+        1 for r in (results or [])
+        if getattr(r, "outcome", None) == UploadOutcome.uploaded
+    )
+    return {"uploaded": uploaded}
+
+
 def _compute_today_window_end(cfg: Config, now: Optional[datetime] = None) -> str:
     """Return end-of-today in cfg.timezone, formatted as UTC ISO Z.
 
@@ -150,105 +171,134 @@ def run_today(
     if now_utc is None:
         now_utc = datetime.now(timezone.utc)
     started_at_utc = datetime.now(timezone.utc)
+    run_id: int | None = None
+    if not dry_run:
+        run_id = repo.start_run(kind="daily")
 
-    def _emit_runs_row(success: bool, summary: str) -> None:
-        # Best-effort runs.md append. dry-run still records — runs.md is a
-        # signal of "this entrypoint executed", not "data was changed".
+    def _runs_md_summary(summary: dict) -> str:
+        if summary.get("message") == "no_candidates":
+            return "no_candidates"
+        if "error" in summary:
+            return str(summary["error"])
+        if "uploaded" in summary:
+            return f"uploaded={summary['uploaded']}"
+        return "empty"
+
+    def _finalize(success: bool, summary: dict) -> None:
+        if run_id is not None:
+            repo.finish_run(run_id, success=success, summary_json=json.dumps(summary))
         append_run_row(
             logs_dir, kind="daily",
             started_at=started_at_utc,
             finished_at=datetime.now(timezone.utc),
-            success=success, summary=summary,
+            success=success, summary=_runs_md_summary(summary),
         )
 
-    # Phase 5's orphan-marker fence. Aborts with exit 4 on inconsistent state.
-    ok, orphan_alerts = reconcile_orphans(repo=repo, cfg=cfg)
-    if not ok:
-        for a in orphan_alerts:
-            append_alert(logs_dir, kind="orphan_reconcile_required", message=a)
-            print(a, file=sys.stderr)
-        _emit_runs_row(False, "orphan_reconcile_required")
-        return ([], 4)
+    try:
+        # Phase 5's orphan-marker fence. Aborts with exit 4 on inconsistent state.
+        ok, orphan_alerts = reconcile_orphans(repo=repo, cfg=cfg)
+        if not ok:
+            for a in orphan_alerts:
+                append_alert(logs_dir, kind="orphan_reconcile_required", message=a)
+                print(a, file=sys.stderr)
+            summary = build_daily_run_summary(error="orphan_reconcile_required")
+            _finalize(False, summary)
+            return ([], 4)
 
-    flipped = reconcile_approvals(repo, cfg, dry_run=dry_run)
-    if flipped:
-        logger.info(f"approved {len(flipped)} clip(s) by reconcile: {flipped[:5]}")
+        flipped = reconcile_approvals(repo, cfg, dry_run=dry_run)
+        if flipped:
+            logger.info(f"approved {len(flipped)} clip(s) by reconcile: {flipped[:5]}")
 
-    statuses = ("approved",) if cfg.human_review else ("quality_pass", "approved")
-    end_of_today_iso = _compute_today_window_end(cfg, now=now_utc)
-    rows = repo.clips_for_upload_due(end_of_today_iso, statuses=statuses)
-    if not rows:
-        logger.info("daily_upload: no candidates for today's window")
-        _emit_runs_row(True, "no_candidates")
-        return ([], 0)
+        statuses = ("approved",) if cfg.human_review else ("quality_pass", "approved")
+        end_of_today_iso = _compute_today_window_end(cfg, now=now_utc)
+        rows = repo.clips_for_upload_due(end_of_today_iso, statuses=statuses)
+        if not rows:
+            logger.info("daily_upload: no candidates for today's window")
+            summary = build_daily_run_summary(no_candidates=True)
+            _finalize(True, summary)
+            return ([], 0)
 
-    results: List = []
-    recovered_clip_ids: List[str] = []
-    padded_clip_ids: List[str] = []
-    api_rejected: List[str] = []
-    api_unreachable: List[str] = []
-    quota_exceeded: List[str] = []
-    for row in rows:
-        result = upload_one_clip(
-            repo=repo, cfg=cfg, ledger=ledger, youtube=youtube,
-            clip_id=row["clip_id"],
-            dry_run=dry_run,
-            ollama_host=ollama_host,
-            now_utc=now_utc,
+        results: List = []
+        recovered_clip_ids: List[str] = []
+        padded_clip_ids: List[str] = []
+        api_rejected: List[str] = []
+        api_unreachable: List[str] = []
+        quota_exceeded: List[str] = []
+        for row in rows:
+            result = upload_one_clip(
+                repo=repo, cfg=cfg, ledger=ledger, youtube=youtube,
+                clip_id=row["clip_id"],
+                dry_run=dry_run,
+                ollama_host=ollama_host,
+                now_utc=now_utc,
+            )
+            results.append(result)
+
+            # Distinguish recovered_slot (intended past) from generic future-too-near pad.
+            if getattr(result, "was_padded", False):
+                intended = _parse_iso_z(row["publish_at_utc"])
+                if intended is not None and intended < now_utc:
+                    recovered_clip_ids.append(result.clip_id)
+                else:
+                    padded_clip_ids.append(result.clip_id)
+
+            if result.outcome == UploadOutcome.api_rejected:
+                api_rejected.append(f"{result.clip_id}: {result.reason}")
+            elif result.outcome == UploadOutcome.api_unreachable:
+                api_unreachable.append(f"{result.clip_id}: {result.reason}")
+            elif result.outcome == UploadOutcome.quota_exceeded:
+                quota_exceeded.append(result.clip_id)
+                logger.warning("daily_upload: quota tripped; aborting batch")
+                break
+
+        if not dry_run:
+            if recovered_clip_ids:
+                append_alert(
+                    logs_dir, kind="recovered_slot",
+                    message=(
+                        f"{len(recovered_clip_ids)} clip(s) had past-due slots "
+                        f"recovered: {recovered_clip_ids[:5]}"
+                    ),
+                )
+            if padded_clip_ids:
+                append_alert(
+                    logs_dir, kind="publish_at_padded",
+                    message=(
+                        f"{len(padded_clip_ids)} clip(s) had publishAt padded to "
+                        f"now+20m: {padded_clip_ids[:5]}"
+                    ),
+                )
+            if quota_exceeded:
+                append_alert(
+                    logs_dir, kind="upload_quota_exceeded",
+                    message=(
+                        f"{len(quota_exceeded)} clip(s) skipped after quota cap: "
+                        f"{quota_exceeded[:5]}"
+                    ),
+                )
+
+        outcome_counts: dict[str, int] = {}
+        for r in results:
+            key = r.outcome.value
+            outcome_counts[key] = outcome_counts.get(key, 0) + 1
+        summary_str = ", ".join(f"{k}={v}" for k, v in sorted(outcome_counts.items()))
+        logger.info(f"daily_upload summary: {summary_str} (total={len(results)})")
+        summary = build_daily_run_summary(results=results)
+        _finalize(True, summary)
+        return (results, 0)
+    except Exception as exc:
+        summary = build_daily_run_summary(
+            error=f"{type(exc).__name__}: {str(exc)[:200]}",
         )
-        results.append(result)
-
-        # Distinguish recovered_slot (intended past) from generic future-too-near pad.
-        if getattr(result, "was_padded", False):
-            intended = _parse_iso_z(row["publish_at_utc"])
-            if intended is not None and intended < now_utc:
-                recovered_clip_ids.append(result.clip_id)
-            else:
-                padded_clip_ids.append(result.clip_id)
-
-        if result.outcome == UploadOutcome.api_rejected:
-            api_rejected.append(f"{result.clip_id}: {result.reason}")
-        elif result.outcome == UploadOutcome.api_unreachable:
-            api_unreachable.append(f"{result.clip_id}: {result.reason}")
-        elif result.outcome == UploadOutcome.quota_exceeded:
-            quota_exceeded.append(result.clip_id)
-            logger.warning("daily_upload: quota tripped; aborting batch")
-            break
-
-    if not dry_run:
-        if recovered_clip_ids:
-            append_alert(
-                logs_dir, kind="recovered_slot",
-                message=(
-                    f"{len(recovered_clip_ids)} clip(s) had past-due slots "
-                    f"recovered: {recovered_clip_ids[:5]}"
-                ),
-            )
-        if padded_clip_ids:
-            append_alert(
-                logs_dir, kind="publish_at_padded",
-                message=(
-                    f"{len(padded_clip_ids)} clip(s) had publishAt padded to "
-                    f"now+20m: {padded_clip_ids[:5]}"
-                ),
-            )
-        if quota_exceeded:
-            append_alert(
-                logs_dir, kind="upload_quota_exceeded",
-                message=(
-                    f"{len(quota_exceeded)} clip(s) skipped after quota cap: "
-                    f"{quota_exceeded[:5]}"
-                ),
-            )
-
-    summary: dict[str, int] = {}
-    for r in results:
-        key = r.outcome.value
-        summary[key] = summary.get(key, 0) + 1
-    summary_str = ", ".join(f"{k}={v}" for k, v in sorted(summary.items()))
-    logger.info(f"daily_upload summary: {summary_str} (total={len(results)})")
-    _emit_runs_row(True, summary_str or "empty")
-    return (results, 0)
+        if run_id is not None:
+            repo.finish_run(run_id, success=False, summary_json=json.dumps(summary))
+        append_run_row(
+            logs_dir, kind="daily",
+            started_at=started_at_utc,
+            finished_at=datetime.now(timezone.utc),
+            success=False, summary=_runs_md_summary(summary),
+        )
+        raise
 
 
 def _print_summary(results) -> None:

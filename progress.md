@@ -1085,3 +1085,14 @@ Fix steps: (1) confirm CUDA 12.x toolkit installed; (2) add `CUDA\v12.x\bin` to 
 - [x] **Issue 49** — Work-area two-column layout (review queue + large preview left, calendar right); uploaded list collapsed in `<details>`; design-system cards/semantic colors (ADR-0005).
 - [x] **Issue 50** — `review_action.py` (approve/reject/unreject, pending-only, atomic `os.replace`, no DB); POST `/api/clip/{id}/approve|reject|unreject` gated on `human_review` + `confirm`; UI confirm step (ADR-0006).
 - [x] Tests: `test_dashboard_run_reader.py` (3), `test_dashboard_health.py` (3), `test_dashboard_alerts_parser.py` (3), `test_dashboard_review_action.py` (4), `test_dashboard_app.py` (5) — **31 dashboard tests green** (was 16).
+
+### Post-v2 backlog — Runs, hygiene, v3.1 controls, Hermes consume (Issues 51–57) · complete (2026-06-06)
+- [x] **Issue 51** — `daily_upload` writes SQLite `runs` row (`kind='daily'`) via `build_daily_run_summary`; dry-run skips DB row; exception path finalizes failed row. Schema comment `generation|daily`.
+- [x] **Issue 52** — Retention post-upload sweep deletes all `output/` copies by basename; `scripts/clean_known_output_orphans.py` removed 2 published-clip duplicates from `output/pending/`.
+- [x] **Issue 53** — Dashboard `by_basename` index; resolver matches `output_path` basename before slug fallback; subdir from disk.
+- [x] **Issue 54** — `next_run.py` (Sun 02:00 / daily 09:00 SGT); health band countdown tiles; `/api/view` `next_run` field.
+- [x] **Issue 55** — `clip_mutation.py` + `POST /api/clip/{id}/reschedule` (run-lock `409`, DB-first+rename, collision warning).
+- [x] **Issue 56** — `plan_edit_title` + `POST /api/clip/{id}/edit-title` (hook+suggested_title+slug rename).
+- [x] **Issue 57** — `scripts.status='directed'`; `scripts_awaiting_narration()` + narration-only `run_stage_b` branch; `docs/hermes-director-contract.md` (ADR-0008).
+- [ ] **Issue 58 (HITL)** — Hermes Agent install + first directed script end-to-end (operator task).
+- [x] Tests: +30 across `test_daily_upload_run_row`, `test_retention_output_copies`, `test_dashboard_basename_resolve`, `test_dashboard_next_run`, `test_dashboard_clip_mutation`, `test_scripter_directed` — **61 green** in issue batch.

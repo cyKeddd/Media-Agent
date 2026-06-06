@@ -62,7 +62,7 @@ def _caps():
 def _empty_scan(tmp_path: Path) -> ScanResult:
     for sub in ("pending", "approved", "rejected", "dry_run"):
         (tmp_path / sub).mkdir(parents=True, exist_ok=True)
-    return ScanResult(by_clip_id={}, by_slug={})
+    return ScanResult(by_clip_id={}, by_slug={}, by_basename={})
 
 
 def test_overall_status_healthy_when_runs_ok(tmp_path):

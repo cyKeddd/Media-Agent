@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Protocol
 from zoneinfo import ZoneInfo
 
+from src.dashboard.next_run import compute_next_runs
 from src.dashboard.run_reader import RunSnapshot
 from src.dashboard.scanner import ScanResult
 from src.editor.slug import title_slug
@@ -128,6 +129,12 @@ class HealthView:
 
 
 @dataclass(frozen=True)
+class NextRunView:
+    generation_at: str
+    daily_at: str
+
+
+@dataclass(frozen=True)
 class DashboardView:
     clips: list[ClipView]
     review_queue: list[ReviewQueueItem]
@@ -135,6 +142,7 @@ class DashboardView:
     uploaded: list[UploadedItem]
     header: HeaderView
     health: HealthView
+    next_run: NextRunView
     human_review: bool = True
 
 
@@ -151,11 +159,17 @@ def _resolve_location(
     clip_id: str,
     title_slug_val: str | None,
     suggested_title: str,
+    output_path: str | None,
     scan: ScanResult,
 ) -> tuple[str | None, Path | None]:
     if clip_id in scan.by_clip_id:
         subdir, path = scan.by_clip_id[clip_id]
         return subdir, path
+    if output_path:
+        basename = Path(output_path).name
+        located = scan.by_basename.get(basename)
+        if located is not None:
+            return located
     slug = title_slug_val or title_slug(suggested_title or "", clip_id)
     if slug in scan.by_slug:
         subdir, path = scan.by_slug[slug]
@@ -317,8 +331,9 @@ def build_dashboard_view(
         title_slug_val = _row_get(row, "title_slug")
         shots_json = _row_get(row, "shots_json") or _row_get(row, "s_shots_json")
 
+        output_path = _row_get(row, "output_path")
         file_subdir, file_path = _resolve_location(
-            clip_id, title_slug_val, suggested_title, scan,
+            clip_id, title_slug_val, suggested_title, output_path, scan,
         )
         video_relpath = None
         if file_path and output_root:
@@ -438,6 +453,12 @@ def build_dashboard_view(
         alerts=alert_views,
     )
 
+    next_runs = compute_next_runs(now, tz)
+    next_run_view = NextRunView(
+        generation_at=next_runs["generation"].isoformat(),
+        daily_at=next_runs["daily"].isoformat(),
+    )
+
     return DashboardView(
         clips=clip_views,
         review_queue=review_queue,
@@ -445,6 +466,7 @@ def build_dashboard_view(
         uploaded=uploaded,
         header=header,
         health=health,
+        next_run=next_run_view,
         human_review=human_review,
     )
 
@@ -469,6 +491,10 @@ def view_to_json(view: DashboardView) -> dict:
 
     return {
         "human_review": view.human_review,
+        "next_run": {
+            "generation_at": view.next_run.generation_at,
+            "daily_at": view.next_run.daily_at,
+        },
         "health": {
             "overall_status": view.health.overall_status.value,
             "generation_run": _run_tile_json(view.health.generation_run),

@@ -156,20 +156,30 @@ def list_output_post_upload_candidates(
     approved_dir = cfg.abs_path(cfg.paths.approved_dir)
     pending_paths: List[str] = []
     approved_paths: List[str] = []
+    seen_pending: set[str] = set()
+    seen_approved: set[str] = set()
     for r in rows:
         if not r["output_path"]:
             continue
-        p = Path(r["output_path"])
-        if not p.exists():
-            continue
-        try:
-            p_resolved = p.resolve()
-            if p_resolved.is_relative_to(pending_dir.resolve()):
-                pending_paths.append(str(p))
-            elif p_resolved.is_relative_to(approved_dir.resolve()):
-                approved_paths.append(str(p))
-        except (ValueError, OSError):
-            continue
+        basename = Path(r["output_path"]).name
+        for subdir, bucket, seen in (
+            (pending_dir, pending_paths, seen_pending),
+            (approved_dir, approved_paths, seen_approved),
+        ):
+            candidate = subdir / basename
+            if not candidate.exists():
+                continue
+            key = str(candidate)
+            if key in seen:
+                continue
+            try:
+                resolved = candidate.resolve()
+                if not resolved.is_relative_to(subdir.resolve()):
+                    continue
+            except (ValueError, OSError):
+                continue
+            bucket.append(key)
+            seen.add(key)
     return (pending_paths, approved_paths)
 
 

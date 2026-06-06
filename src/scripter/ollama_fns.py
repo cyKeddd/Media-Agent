@@ -162,6 +162,38 @@ JSON structure (output this exactly, no markdown fences):
 """
 
 
+_NARRATION_PROMPT = """\
+Write narration ONLY for a directed YouTube Shorts script. The title and shots are fixed.
+
+Title: {title}
+Shots JSON: {shots_json}
+Topic: {topic_title}
+Context: {summary}
+
+Rules:
+1. Write FOUR complete sentences, 30-50 words total.
+2. Sentence 1: hook — start with the most surprising number or fact.
+3. Match the directed title and shots; do not invent new visuals.
+4. No "I think". No "as an AI". No "<<placeholder>>".
+
+Respond ONLY with valid JSON:
+{{"narration": "four sentences here"}}
+"""
+
+
+def make_narration_generator(model: str) -> Callable:
+    def _fn(title: str, shots_json: str, topic_title: str, summary: str | None) -> str:
+        prompt = _NARRATION_PROMPT.format(
+            title=title,
+            shots_json=shots_json,
+            topic_title=topic_title,
+            summary=summary or "N/A",
+        )
+        data = _chat_json(model, prompt)
+        return str(data["narration"])
+    return _fn
+
+
 def make_script_generator(model: str) -> Callable:
     def _fn(title: str, summary: str | None) -> dict:
         prompt = _GENERATOR_PROMPT.format(title=title, summary=summary or "N/A")

@@ -91,6 +91,47 @@ def validate_script(script: dict, cfg) -> tuple[bool, str | None]:
     return True, None
 
 
+def validate_narration_only(narration: str, cfg) -> tuple[bool, str | None]:
+    sc = cfg.scripter
+    word_count = len(narration.split())
+    if word_count < sc.narration_word_count_min:
+        return False, f"narration too short: {word_count} words (min {sc.narration_word_count_min})"
+    if word_count > sc.narration_word_count_max:
+        return False, f"narration too long: {word_count} words (max {sc.narration_word_count_max})"
+    for token in sc.banned_tokens:
+        if token.lower() in narration.lower():
+            return False, f"banned token in narration: {token!r}"
+    return True, None
+
+
+def generate_narration_for_directed(
+    script_row,
+    topic_row,
+    narration_fn: Callable,
+    cfg,
+) -> str:
+    sc = cfg.scripter
+    last_err: Exception | None = None
+    for _ in range(sc.retry_on_failure):
+        try:
+            narration = narration_fn(
+                script_row["title"],
+                script_row["shots_json"],
+                topic_row["title"] if topic_row else "",
+                topic_row["summary"] if topic_row else None,
+            )
+        except Exception as e:
+            last_err = e
+            continue
+        valid, reason = validate_narration_only(narration, cfg)
+        if valid:
+            return narration
+        last_err = ScriptRejectedError(reason)
+    raise ScriptRejectedError(
+        f"all narration retries exhausted for script {script_row['script_id']}",
+    ) from last_err
+
+
 def generate_script(topic: dict, generator_fn: Callable, cfg) -> dict:
     sc = cfg.scripter
     last_err: Exception | None = None
@@ -113,11 +154,33 @@ def run_stage_b(
     topics: list[dict],
     *,
     generator_fn: Callable | None = None,
+    narration_fn: Callable | None = None,
 ) -> list[dict]:
-    if not topics:
-        return []
     sc = cfg.scripter
-    results = []
+    results: list[dict] = []
+
+    if generator_fn is not None and narration_fn is not None:
+        for script_row in repo.scripts_awaiting_narration():
+            topic_row = repo.conn.execute(
+                "SELECT * FROM topics WHERE id=?", (script_row["topic_id"],),
+            ).fetchone()
+            try:
+                narration = generate_narration_for_directed(
+                    script_row, topic_row, narration_fn, cfg,
+                )
+            except Exception:
+                continue
+            repo.set_script_narration_pending(script_row["script_id"], narration)
+            results.append({
+                "script_id": script_row["script_id"],
+                "topic_id": script_row["topic_id"],
+                "title": script_row["title"],
+                "narration": narration,
+                "shots": json.loads(script_row["shots_json"]),
+            })
+
+    if not topics:
+        return results
     for t in topics:
         if generator_fn is None:
             results.append(t)

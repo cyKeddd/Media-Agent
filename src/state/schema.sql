@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS uploads (
 
 CREATE TABLE IF NOT EXISTS runs (
     run_id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    kind               TEXT NOT NULL,                -- weekly|daily|bootstrap
+    kind               TEXT NOT NULL,                -- generation|daily
     started_at         TEXT NOT NULL DEFAULT (datetime('now')),
     finished_at        TEXT,
     success            INTEGER,                      -- 0/1
@@ -151,7 +151,7 @@ CREATE TABLE IF NOT EXISTS scripts (
     quality_score      REAL,                        -- denormalised weighted score for sorting
     rejection_reason   TEXT,
     created_at         TEXT NOT NULL,
-    status             TEXT NOT NULL DEFAULT 'pending'  -- pending|scripted|rejected_policy|selected_for_render|failed
+    status             TEXT NOT NULL DEFAULT 'pending'  -- directed|pending|scripted|rejected_policy|selected_for_render|failed
 );
 CREATE INDEX IF NOT EXISTS idx_scripts_status   ON scripts(status);
 CREATE INDEX IF NOT EXISTS idx_scripts_topic_id ON scripts(topic_id);

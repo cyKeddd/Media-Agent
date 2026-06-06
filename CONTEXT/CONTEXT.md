@@ -68,6 +68,24 @@ _Avoid_: novelty, importance, virality.
 Live external confirmation that a **Topic** is currently hot, read from the Hacker News front page. A **Topic** also trending on HN is boosted in selection. Distinct from **Significance**, which is an intrinsic editorial judgement — corroboration is measured, real-time popularity.
 _Avoid_: trending score, popularity, buzz.
 
+### Creative direction
+
+**Hermes director**:
+The external **Nous Research Hermes Agent** (a standalone self-improving agent, not a model)
+acting as the channel's creative director, running on the `nvidia/nemotron-3-ultra:free`
+backend. It performs **ideation** (concept/angle for a **Topic**) and **direction** (the
+per-**Shot** Kling prompts — "the responses sent to Kling"). It is configured and run
+*outside* this repo; it touches the pipeline only by writing **Directed scripts** (ADR-0008).
+_Avoid_: Hermes model, director model, the AI.
+
+**Directed script**:
+A `scripts` row authored by the **Hermes director** rather than the qwen scripter: `title` +
+`shots_json` (tagged hybrid schema) filled, `narration` empty, `status='directed'`. The qwen
+scripter later fills narration only. A **Topic** with no **Directed script** falls back to the
+full-qwen path. Directed shots are *not* exempt from licensed-sourcing or the
+no-living-individuals rule — they pass the same downstream gates. See ADR-0008.
+_Avoid_: director brief, Hermes script, AI script.
+
 ### Ship lifecycle
 
 **First live ship**:
@@ -86,6 +104,34 @@ The T+48h check that the **Clip** stayed live and clean. Marked `[x]`. Runs conc
 **Review stage**:
 The lifecycle position of a **Clip** on its way to publication, *derived* by reconciling which `output/` directory currently holds its file with its DB fields — **Awaiting review** (file in `output/pending/`), **Approved / scheduled** (file in `output/approved/`, `publish_at_utc` set, not yet uploaded), **Published** (`youtube_video_id` set), or **Rejected**. Distinct from `clips.status`, which does not encode the filesystem HITL position — the drag-to-approve gate lives on disk, not in a column.
 _Avoid_: clip state, status (when you mean the filesystem position).
+
+**Approve / Reject action**:
+The operator decision that advances a **Clip** out of **Awaiting review** — *the same drag-to-approve gate*, whether performed by dragging the MP4 in Explorer or by clicking a button in the dashboard. Both do exactly one thing: move the file `pending/ → approved/` (approve) or `pending/ → rejected/` (reject). It is not a new gate and writes no DB column; the filesystem remains the single source of truth `daily_upload` trusts. Only meaningful while `human_review` is on.
+_Avoid_: approval status, approve flag.
+
+**Operator override**:
+A dashboard **v3.1** action that mutates a constrained set of **pre-publication** `clips`
+fields — **reschedule** (`publish_at_utc` / slot) or **edit title** (`suggested_title` +
+`hook`) — and renames the corresponding `output/` file. Distinct from the **Approve / Reject
+action**, which moves files only (ADR-0006): an **Operator override** *does* write the DB,
+but only for a **Clip** with no `youtube_video_id`, only while holding `data/.weekly_run.lock`,
+DB-first-then-rename (ADR-0007), and only on `127.0.0.1`. Triggering `gen_run` and LAN/token
+auth are **not** overrides — they are deferred to v3.2.
+_Avoid_: edit action, admin action, control.
+
+### Operations & observability
+
+**Run**:
+One recorded execution of a scheduled entry point — `gen_run` (`kind='generation'`, the weekly heavy run) or `daily_upload` (`kind='daily'`) — persisted to the `runs` table with `started_at`, `finished_at`, a `success` flag, and a `summary_json` (per-stage counts, or the error string on failure). The dashboard's health view reads the latest **Run** of each kind.
+_Avoid_: job, execution, invocation.
+
+**Pipeline health**:
+The at-a-glance answer to "is the agent OK right now?", composed from the most recent generation and daily **Runs** (succeeded / failed / not-yet-run), the open **Alerts**, spend against caps, and queue depth. A *derived summary*, not a stored field.
+_Avoid_: status, state.
+
+**Alert**:
+One appended line in `logs/alerts.md` recording a noteworthy pipeline event — run failure, loudness warning, quota-exceeded, missed-slot recovery, run finished. The dashboard surfaces the most recent **Alerts** newest-first. Distinct from a **Run** outcome: an **Alert** is a discrete event notice, a **Run** is an execution record.
+_Avoid_: log, notification, warning (generic).
 
 ## Relationships
 
@@ -108,3 +154,4 @@ _Avoid_: clip state, status (when you mean the filesystem position).
 
 - **"test channel" vs "channel"** — every ship so far targets the YouTube *test* channel. "the channel" without qualification means the test channel until a primary channel is named.
 - Pivot.7 adds: a **real_image** `entity` must be a product/logo/object, never a living person (no sourcing identifiable individuals).
+- **Dashboard "v2"** — resolved 2026-06-01. The original dashboard grill earmarked "v2" as *approve/reject from the UI* and "v3+" as reschedule/trigger/edit/LAN. The v2 work now bundles that approve/reject write-path **with** a health-first visual redesign; "v2" means both. The deferred controls (reschedule slots, trigger `gen_run`, edit titles, LAN exposure + token auth) are now **v3**.

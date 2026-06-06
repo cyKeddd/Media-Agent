@@ -1,7 +1,7 @@
 # Phase: testing
 **Project:** Media-Agent (Pivot.6)
 **Status:** in-progress
-**Last updated:** 2026-06-01
+**Last updated:** 2026-06-06
 
 ## Objective
 
@@ -37,6 +37,7 @@ Maintain a comprehensive test suite that covers all pipeline modules. Tests must
 - [2026-05-31] Issue 43 — 6 clip-spend-ceiling tests (`tests/test_clip_spend_ceiling.py`).
 - [2026-05-31] Issues 44–46 — 16 dashboard tests (`tests/test_dashboard_scanner.py`, `test_dashboard_view_model.py`, `test_dashboard_app.py`).
 - [2026-06-01] Issues 47–50 — 31 dashboard tests (+ run reader, health, alerts, review-action, POST smoke).
+- [2026-06-06] Issues 51–57 — 30 tests (`test_daily_upload_run_row`, `test_retention_output_copies`, `test_dashboard_basename_resolve`, `test_dashboard_next_run`, `test_dashboard_clip_mutation`, `test_scripter_directed`).
 
 ## Artifacts
 
@@ -52,7 +53,9 @@ Maintain a comprehensive test suite that covers all pipeline modules. Tests must
 | Orchestrator tests | `tests/test_gen_run.py` | 11 tests (Slice 8 + Issue 41 clips cap) |
 | Backfill tests | `tests/test_topic_ingest_backfill.py` | 6 tests — Issue 39 |
 | Clip spend tests | `tests/test_clip_spend_ceiling.py` | 6 tests — Issue 43 |
-| Dashboard tests | `tests/test_dashboard_*.py` | 31 tests — Issues 44–50 |
+| Dashboard tests | `tests/test_dashboard_*.py` | 61 tests — Issues 44–57 |
+| Daily run row tests | `tests/test_daily_upload_run_row.py` | Issue 51 |
+| Directed script tests | `tests/test_scripter_directed.py` | Issue 57 |
 | Uploader tests | `tests/test_uploader_*.py` | templater, insert_body, resumable, orphan_marker, runner |
 | Policy gate tests | `tests/test_policy_*.py` | banlist, profanity, NSFW, hook_sanity, evaluator |
 | Assembler tests | `tests/assembler/test_build.py`, `test_normalize.py`, `test_assemble_mixed_res.py` | argv + lavfi ffmpeg integration |

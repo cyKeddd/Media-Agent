@@ -93,6 +93,9 @@ def test_api_view_returns_200_and_shape(client):
     assert data["health"]["overall_status"] in ("healthy", "degraded", "failed")
     assert "generation_run" in data["health"]
     assert "daily_run" in data["health"]
+    assert "next_run" in data
+    assert "generation_at" in data["next_run"]
+    assert "daily_at" in data["next_run"]
 
 
 def test_video_serves_file_under_output(client):

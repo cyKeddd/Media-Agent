@@ -20,7 +20,7 @@ def main() -> None:
     initialize_schema(conn)
     repo = Repository(conn)
     reader = build_reader(repo)
-    app = create_app(cfg=cfg, reader=reader)
+    app = create_app(cfg=cfg, reader=reader, repo=repo)
     uvicorn.run(app, host=HOST, port=PORT, log_level="info")
 
 

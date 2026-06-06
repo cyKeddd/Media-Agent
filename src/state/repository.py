@@ -768,19 +768,53 @@ class Repository:
         created_at: str,
         topic_score_json: str | None = None,
         category: str | None = None,
+        status: str = "pending",
     ) -> None:
         self.conn.execute(
             """
             INSERT INTO scripts (
                 script_id, topic_id, title, narration, shots_json,
                 style_suffix, ollama_model, created_at,
-                topic_score_json, category
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                topic_score_json, category, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (script_id, topic_id, title, narration, shots_json,
              style_suffix, ollama_model, created_at,
-             topic_score_json, category),
+             topic_score_json, category, status),
         )
+
+    def scripts_awaiting_narration(self) -> list[sqlite3.Row]:
+        """Directed scripts waiting for qwen narration-only completion."""
+        return self.conn.execute(
+            "SELECT * FROM scripts WHERE status='directed' ORDER BY created_at ASC"
+        ).fetchall()
+
+    def set_script_narration_pending(
+        self,
+        script_id: str,
+        narration: str,
+    ) -> None:
+        self.conn.execute(
+            "UPDATE scripts SET narration=?, status='pending' WHERE script_id=?",
+            (narration, script_id),
+        )
+
+    def clips_at_publish_at(
+        self,
+        publish_at_utc: str,
+        *,
+        exclude_clip_id: str | None = None,
+    ) -> list[sqlite3.Row]:
+        """Non-published clips already holding a publish_at_utc slot."""
+        sql = (
+            "SELECT clip_id FROM clips "
+            "WHERE publish_at_utc=? AND youtube_video_id IS NULL"
+        )
+        params: list = [publish_at_utc]
+        if exclude_clip_id:
+            sql += " AND clip_id != ?"
+            params.append(exclude_clip_id)
+        return self.conn.execute(sql, params).fetchall()
 
     def get_script(self, script_id: str) -> sqlite3.Row | None:
         return self.conn.execute(

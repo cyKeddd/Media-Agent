@@ -67,3 +67,4 @@ def test_approved_takes_precedence_over_pending_same_slug(tmp_path):
     result = scan_output_dirs(root)
 
     assert result.by_slug[slug] == ("approved", approved)
+    assert result.by_basename[approved.name] == ("approved", approved)

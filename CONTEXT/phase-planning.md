@@ -1,7 +1,7 @@
 # Phase: planning
 **Project:** Media-Agent (Pivot.6 → Pivot.7)
 **Status:** in-progress
-**Last updated:** 2026-06-01
+**Last updated:** 2026-06-06
 
 ## Objective
 
@@ -51,6 +51,7 @@ Lock the niche, content format, budget, weekly cadence, and tech stack direction
 - **[2026-05-31] Task Scheduler defects (block autonomy):** (a) `weekly_run.xml` runs stale `-m src.weekly_run` → must be `src.gen_run`; (b) both XMLs point at the stale `Documents\Media-Agent-main` repo copy, not the live `Desktop\Work\Media-Agent-main`; (c) verify a weekly run produces exactly **2 clips** (weekday allocator as count authority), not `clips_per_day×days_per_run=7`.
 - **[2026-05-31] OpenRouter top-up = $20, done; auto-top-up now ON.** Balance is no longer a spend backstop — the config caps are the sole guardrail. Hard limit **2.5 credits (250¢)/video** (`per_clip_cost_cents_max: 250`) + `daily_spend_cents_ceiling: 500`, both unchanged; do not raise without approval. Watch retry double-billing on a single clip (the 252¢ reverse-aging retry already exceeded the 250¢ projection).
 - **[2026-06-01] Dashboard "v2" scope locked (grill → PRD → Issues 47–50).** "v2" = **health-first visual redesign + in-UI approve/reject**, bundling the previously-deferred approve write-path with the redesign. Reschedule/trigger/edit + LAN + next-run countdown → **v3**. Decisions D1–D8: (D2/ADR-0006) approve/reject **moves files only** (`pending↔approved/rejected`), no DB write, `daily_upload` contract unchanged; (D3) primary job = **monitor Pipeline health** from the `runs` table + `logs/alerts.md` (both unused by v1) — latest gen_run/daily **Run** tiles, alerts feed, spend/queue, derived overall status; (D4/ADR-0005) **dependency-light** frontend, FastAPI + static + CSS design system, **no Node/build**; (D5) auto-poll ~30s + manual; (D6) action safety = confirm + server validation (pending-only, atomic `os.replace`), reject reversible; (D7) controls shown **only while `human_review` on**, else read-only banner; (D8) **command-center** dark layout. Glossary gained **Run / Pipeline health / Alert / Approve-Reject action**; "v2" version ambiguity resolved. No code written.
+- **[2026-06-06] Post-v2 backlog scoped (grill → PRD → Issues 51–58).** Four workstreams: (WS1) `daily_upload` writes a SQLite **Run** row like `gen_run` (non-dry-run only; summary `{uploaded,message,error}`) so the dashboard daily tile populates; (WS2) retention sweeps **all** `output/` copies of an uploaded **Clip** by basename + dashboard matches `output_path` basename (slug fallback) — root-caused the 2 "stuck pending" MP4s as already-published duplicates retention's single-path sweep missed, **not** a dashboard bug; (WS3/ADR-0007) dashboard v3.1 **Operator overrides** — reschedule + edit-title, which *do* write the DB + rename the file but only for a non-published **Clip**, run-lock-guarded (409 if held), DB-first-then-rename, localhost; plus a read-only next-run countdown. Trigger-`gen_run` + LAN/token-auth deferred to **v3.2**. (WS4/ADR-0008) **Hermes director** — discovered Hermes = the **Nous Research Hermes Agent** (agentic CLI, *not* an LLM model) on `nvidia/nemotron-3-ultra:free`; it authors **Directed scripts** (`scripts` rows, `status='directed'`, narration empty) + claims the Topic; the qwen scripter fills narration-only; fallback to full-qwen. Repo builds the consume side only; Hermes setup is HITL (Issue 58). Glossary gained **Operator override / Hermes director / Directed script**. No code written.
 
 ## Accomplishments
 
@@ -71,6 +72,7 @@ Lock the niche, content format, budget, weekly cadence, and tech stack direction
 - [2026-05-31] /grill-with-docs → /to-prd → /to-issues: root-caused the off-niche reverse-aging clip to a 112-topic pre-gate backlog (not a classifier bug); locked S1–S7 (slot dedup, backfill-gate, scheduler XML fixes, enable trigger, evidence+floor hands-off, $20 top-up); published PRD `steady-state-autonomous-cadence` + Issues 39–42. Dashboard captured as next-up follow-on. No code written.
 - [2026-05-31] /grill-with-docs → /to-prd → /to-issues: locked the **web review/calendar dashboard v1** (D1–D5: read-only viewer + calendar + preview; FastAPI + static page on 127.0.0.1; pure view-model deep module; derived **Review stage**; four sections). Added **Review stage** to the glossary; verified `quota_usage.script_id` self-migrates (per-clip cost works). Published PRD `web-review-calendar-dashboard` + Issues 44–46. v2 = approve action, v3+ = control panel + LAN/token. No code written.
 - [2026-06-01] /grill-with-docs → /to-prd → /to-issues → /handoff: locked **dashboard v2** (health-first redesign + in-UI approve/reject; D1–D8). Resolved the "v2" naming collision (now = redesign + write path; controls/LAN → v3). Found the `runs` table + `logs/alerts.md` go unused by v1 → basis for the health band. Wrote **ADR-0005** (no-SPA/no-build frontend) + **ADR-0006** (approve/reject moves files only). Added glossary terms **Run / Pipeline health / Alert / Approve-Reject action**. Published PRD `dashboard-v2-health-first-redesign` + Issues 47–50 (all AFK; tests M1–M5). No code written.
+- [2026-06-06] /grill-with-docs → /to-prd → /to-issues → /handoff: scoped the **post-v2 backlog** (4 workstreams). Grounded every decision against live code + DB; reframed "Hermes" from an assumed LLM to the **Nous Hermes Agent**. Wrote **ADR-0007** (dashboard may mutate pre-publication fields) + **ADR-0008** (Hermes director authors `scripts` rows); added glossary **Operator override / Hermes director / Directed script**. Published PRD `next-work-runs-retention-v3.1-hermes-director` + Issues 51–58 (51–57 AFK ready-for-agent, full test coverage incl. endpoints; 58 HITL Hermes setup). No code written.
 
 ## Artifacts
 
@@ -100,6 +102,9 @@ Lock the niche, content format, budget, weekly cadence, and tech stack direction
 | Grill record (dashboard v2) | `CONTEXT/Grilling/2026-06-01-dashboard-v2-redesign.md` | D1–D8 decisions of record |
 | ADR-0005 | `docs/adr/0005-dashboard-dependency-light-frontend.md` | No SPA / no build step |
 | ADR-0006 | `docs/adr/0006-dashboard-approve-reject-moves-files-only.md` | Approve/reject moves files only |
+| ADR-0007 | `docs/adr/0007-dashboard-may-mutate-prepublication-fields.md` | Dashboard may mutate pre-publication fields (extends 0006) |
+| ADR-0008 | `docs/adr/0008-hermes-director-authors-scripts-rows.md` | Hermes director authors `scripts` rows; qwen fills narration |
+| Post-v2 backlog PRD | `docs/prds/next-work-runs-retention-v3.1-hermes-director.md` | Issues 51–58; `ready-for-agent` |
 
 ## Sessions
 
@@ -113,6 +118,7 @@ Lock the niche, content format, budget, weekly cadence, and tech stack direction
 - Steady-state autonomy grill (2026-05-31) — `.sessions/2026-05-31__steady-state-autonomy-grill/handoff.md`
 - Web review/calendar dashboard grill (2026-05-31) — `.sessions/2026-05-31__web-dashboard-grill/handoff.md`
 - Dashboard v2 grill → PRD → issues (2026-06-01) — `.sessions/2026-06-01__dashboard-v2-grill-prd-issues/handoff.md`
+- Post-v2 backlog grill → PRD → issues + Hermes director (2026-06-06) — `.sessions/2026-06-06__backlog-grill-prd-issues-hermes-director/handoff.md`
 
 ## Open Items
 

@@ -2,6 +2,7 @@ let viewData = null;
 let calYear = new Date().getFullYear();
 let calMonth = new Date().getMonth();
 let pollTimer = null;
+let countdownTimer = null;
 const POLL_MS = 30000;
 
 async function loadView() {
@@ -24,6 +25,7 @@ async function loadView() {
       return;
     }
     renderHealth();
+    startCountdown();
     renderReviewQueue();
     renderCalendar();
     renderAlerts();
@@ -42,6 +44,7 @@ function renderHealth() {
   const daily = h.daily_run;
   const genClass = gen.error ? ' run-failed' : '';
   const dailyClass = daily.error ? ' run-failed' : '';
+  const nr = viewData.next_run || {};
   document.getElementById('health-band').innerHTML = `
     <div class="tile overall ${overall}">
       <div class="label">Pipeline health</div>
@@ -56,6 +59,16 @@ function renderHealth() {
       <div class="label">Daily upload</div>
       <div class="value">${esc(daily.label)}</div>
       <div class="detail">${esc(daily.detail || daily.started_at || '')}${daily.error ? '<br>' + esc(daily.error) : ''}</div>
+    </div>
+    <div class="tile">
+      <div class="label">Next generation</div>
+      <div class="value" id="countdown-generation">—</div>
+      <div class="detail">${nr.generation_at ? esc(new Date(nr.generation_at).toLocaleString()) : ''}</div>
+    </div>
+    <div class="tile">
+      <div class="label">Next daily upload</div>
+      <div class="value" id="countdown-daily">—</div>
+      <div class="detail">${nr.daily_at ? esc(new Date(nr.daily_at).toLocaleString()) : ''}</div>
     </div>
     <div class="tile">
       <div class="label">OpenRouter today</div>
@@ -103,6 +116,8 @@ function renderReviewQueue() {
       <div class="review-actions">
         <button class="btn-approve" data-clip="${item.clip_id}">Approve</button>
         <button class="danger btn-reject" data-clip="${item.clip_id}">Reject</button>
+        <button class="secondary btn-reschedule" data-clip="${item.clip_id}">Reschedule</button>
+        <button class="secondary btn-edit-title" data-clip="${item.clip_id}">Edit title</button>
       </div>` : '';
     return `
       <div class="review-card" id="clip-${item.clip_id}">
@@ -123,6 +138,68 @@ function renderReviewQueue() {
   document.querySelectorAll('.btn-reject').forEach(btn => {
     btn.addEventListener('click', () => confirmAction(btn.dataset.clip, 'reject'));
   });
+  document.querySelectorAll('.btn-reschedule').forEach(btn => {
+    btn.addEventListener('click', () => rescheduleClip(btn.dataset.clip));
+  });
+  document.querySelectorAll('.btn-edit-title').forEach(btn => {
+    btn.addEventListener('click', () => editTitleClip(btn.dataset.clip));
+  });
+}
+
+function formatCountdown(targetIso) {
+  const target = new Date(targetIso).getTime();
+  const diff = Math.max(0, target - Date.now());
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  const s = Math.floor((diff % 60000) / 1000);
+  return `${h}h ${m}m ${s}s`;
+}
+
+function startCountdown() {
+  if (countdownTimer) clearInterval(countdownTimer);
+  const tick = () => {
+    const nr = viewData && viewData.next_run;
+    if (!nr) return;
+    const genEl = document.getElementById('countdown-generation');
+    const dailyEl = document.getElementById('countdown-daily');
+    if (genEl && nr.generation_at) genEl.textContent = formatCountdown(nr.generation_at);
+    if (dailyEl && nr.daily_at) dailyEl.textContent = formatCountdown(nr.daily_at);
+  };
+  tick();
+  countdownTimer = setInterval(tick, 1000);
+}
+
+async function rescheduleClip(clipId) {
+  const when = window.prompt('New slot (ISO local datetime, e.g. 2026-06-08T10:00:00+08:00):');
+  if (!when) return;
+  const resp = await fetch(`/api/clip/${encodeURIComponent(clipId)}/reschedule`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ confirm: true, publish_at_local: when }),
+  });
+  const data = await resp.json();
+  if (data.ok) {
+    if (data.warning) alert(data.warning);
+    await loadView();
+  } else {
+    alert(data.message || 'Reschedule refused');
+  }
+}
+
+async function editTitleClip(clipId) {
+  const title = window.prompt('New YouTube title (hook):');
+  if (!title) return;
+  const resp = await fetch(`/api/clip/${encodeURIComponent(clipId)}/edit-title`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ confirm: true, title }),
+  });
+  const data = await resp.json();
+  if (data.ok) {
+    await loadView();
+  } else {
+    alert(data.message || 'Edit refused');
+  }
 }
 
 async function confirmAction(clipId, action) {

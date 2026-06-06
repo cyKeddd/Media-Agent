@@ -16,6 +16,7 @@ _SLOT_RE = re.compile(r"^\d{4}-\d{2}-\d{2}__slot_\d{4}__(?P<slug>.+)\.mp4$")
 class ScanResult:
     by_clip_id: dict[str, tuple[str, Path]]
     by_slug: dict[str, tuple[str, Path]]
+    by_basename: dict[str, tuple[str, Path]]
 
 
 def _extract_slug(filename: str) -> str | None:
@@ -30,10 +31,22 @@ def _extract_slug(filename: str) -> str | None:
     return None
 
 
+def _prefer_index(
+    index: dict[str, tuple[str, Path]],
+    key: str,
+    subdir: str,
+    path: Path,
+) -> None:
+    prev = index.get(key)
+    if prev is None or _SUBDIR_RANK[subdir] > _SUBDIR_RANK[prev[0]]:
+        index[key] = (subdir, path)
+
+
 def scan_output_dirs(output_root: Path) -> ScanResult:
-    """Return clip_id and slug indexes over pending/approved/rejected/dry_run."""
+    """Return clip_id, slug, and basename indexes over output subdirs."""
     by_clip_id: dict[str, tuple[str, Path]] = {}
     by_slug: dict[str, tuple[str, Path]] = {}
+    by_basename: dict[str, tuple[str, Path]] = {}
 
     for subdir in _SUBDIRS:
         dir_path = output_root / subdir
@@ -44,10 +57,8 @@ def scan_output_dirs(output_root: Path) -> ScanResult:
             if m:
                 by_clip_id[m.group("clip_id")] = (subdir, mp4)
             slug = _extract_slug(mp4.name)
-            if slug is None:
-                continue
-            prev = by_slug.get(slug)
-            if prev is None or _SUBDIR_RANK[subdir] > _SUBDIR_RANK[prev[0]]:
-                by_slug[slug] = (subdir, mp4)
+            if slug is not None:
+                _prefer_index(by_slug, slug, subdir, mp4)
+            _prefer_index(by_basename, mp4.name, subdir, mp4)
 
-    return ScanResult(by_clip_id=by_clip_id, by_slug=by_slug)
+    return ScanResult(by_clip_id=by_clip_id, by_slug=by_slug, by_basename=by_basename)

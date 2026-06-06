@@ -33,6 +33,7 @@ from src.state import Repository, connect
 from src.topic_ingest.runner import fetch_unscripted_topics
 from src.scripter.runner import run_stage_a, run_stage_b, run_stage_c
 from src.scripter.ollama_fns import (
+    make_narration_generator,
     make_script_generator,
     make_script_scorer,
     make_topic_scorer,
@@ -457,6 +458,7 @@ def run_generation(
             scripts = run_stage_b(
                 cfg, repo, topics_scored,
                 generator_fn=make_script_generator(cfg.ollama_model),
+                narration_fn=make_narration_generator(cfg.ollama_model),
             )
         summary["stages"]["scripter_b"] = _summarize(scripts)
 

@@ -36,6 +36,7 @@ class FakeClip:
     script_title: str | None = None
     script_narration: str | None = None
     shots_json: str | None = None
+    output_path: str | None = None
 
 
 @dataclass
@@ -80,9 +81,11 @@ def _scan(root: Path, *, pending: str | None = None, approved: str | None = None
         (root / sub).mkdir(parents=True, exist_ok=True)
     by_clip_id: dict[str, tuple[str, Path]] = {}
     by_slug: dict[str, tuple[str, Path]] = {}
+    by_basename: dict[str, tuple[str, Path]] = {}
     if pending:
         p = root / "pending" / pending
         p.write_bytes(b"x")
+        by_basename[p.name] = ("pending", p)
         if pending.startswith("__unscheduled__"):
             parts = pending.removeprefix("__unscheduled__").removesuffix(".mp4").split("__", 1)
             by_clip_id[parts[0]] = ("pending", p)
@@ -94,9 +97,10 @@ def _scan(root: Path, *, pending: str | None = None, approved: str | None = None
     if approved:
         p = root / "approved" / approved
         p.write_bytes(b"x")
+        by_basename[p.name] = ("approved", p)
         slug = approved.split("__", 2)[-1].removesuffix(".mp4")
         by_slug[slug] = ("approved", p)
-    return ScanResult(by_clip_id=by_clip_id, by_slug=by_slug)
+    return ScanResult(by_clip_id=by_clip_id, by_slug=by_slug, by_basename=by_basename)
 
 
 def test_pending_file_is_awaiting_review(tmp_path):
@@ -142,7 +146,7 @@ def test_youtube_id_is_published(tmp_path):
             )
         ]
     )
-    scan = ScanResult(by_clip_id={}, by_slug={})
+    scan = ScanResult(by_clip_id={}, by_slug={}, by_basename={})
 
     view = build_dashboard_view(reader, scan, now=NOW, tz=SGT, ai_gen=_caps())
 
@@ -151,7 +155,7 @@ def test_youtube_id_is_published(tmp_path):
 
 def test_rejected_status(tmp_path):
     reader = FakeReader(clips=[FakeClip(clip_id="clipD", status="rejected_quality")])
-    scan = ScanResult(by_clip_id={}, by_slug={})
+    scan = ScanResult(by_clip_id={}, by_slug={}, by_basename={})
 
     view = build_dashboard_view(reader, scan, now=NOW, tz=SGT, ai_gen=_caps())
 
@@ -219,7 +223,7 @@ def test_uploaded_list_live_vs_scheduled(tmp_path):
             ),
         ]
     )
-    scan = ScanResult(by_clip_id={}, by_slug={})
+    scan = ScanResult(by_clip_id={}, by_slug={}, by_basename={})
 
     view = build_dashboard_view(reader, scan, now=NOW, tz=SGT, ai_gen=_caps())
 

@@ -1,7 +1,7 @@
 # Phase: development
 **Project:** Media-Agent (Pivot.6)
 **Status:** in-progress
-**Last updated:** 2026-06-01 (issues-47-50-dashboard-v2-tdd)
+**Last updated:** 2026-06-06 (issues-51-57-tdd)
 
 ## Objective
 
@@ -45,6 +45,7 @@ Implement all 10 slices of the Pivot.6 AI-generated pipeline: RSS ingest → top
 - [2026-05-31] **Issue 43:** cumulative per-clip spend ceiling + shot reuse on retry.
 - [2026-05-31] **Issues 44–46 (dashboard v1):** read-only web dashboard — `src/dashboard/` (scanner, view-model, FastAPI, static UI); `python -m src.dashboard` on 127.0.0.1:8765; 16 tests green.
 - [2026-06-01] **Issues 47–50 (dashboard v2):** health band (`runs` + `alerts.md`), command-center layout, approve/reject file moves (ADR-0006); 31 dashboard tests green.
+- [2026-06-06] **Issues 51–57 (post-v2 backlog):** daily `runs` row, retention basename sweep, dashboard basename match, next-run countdown, operator overrides (ADR-0007), Hermes consume-side `directed` branch (ADR-0008); 30 new tests green.
 - [2026-05-31] **Dashboard startup fix:** legacy DB `quota_usage.script_id` migration order + `check_same_thread=False` for FastAPI (`f1e90bc`).
 
 ## Artifacts
@@ -90,3 +91,4 @@ Implement all 10 slices of the Pivot.6 AI-generated pipeline: RSS ingest → top
 - [2026-05-28] **ADR-0004 hybrid live verify:** cost cap 250¢ (was 270); licensed fetch-and-cache resolver; sample clip uploaded (`qRdVYO1Tmfw`) but was ai_video-only, not hybrid.
 - Next: **Issue 29** T+1h ship gate **Thu 2026-06-04** on `NPFJiqmd4ro`; first scheduler weekly run Sun 2026-06-07 02:00 SGT.
 - Next grill after Slice 10 `[x]`: scripter quality (deferred from 2026-05-23 handoff).
+- [2026-06-06] **Issues 51–57:** daily `runs` row, retention basename sweep, dashboard basename match, next-run countdown, operator overrides (reschedule/edit-title, ADR-0007), Hermes consume-side (`directed` + narration branch, ADR-0008). Issue 58 HITL pending.
