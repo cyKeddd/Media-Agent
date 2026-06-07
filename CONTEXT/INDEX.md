@@ -21,7 +21,7 @@ Tech/AI news YouTube Shorts pipeline. Issues 39–41 + **43** complete; Issue 42
 | architecture | [phase-architecture.md](phase-architecture.md) | in-progress | 2026-05-27 | SQLite schema (4 Pivot.6 tables), Pydantic Config, 50+ DAL helpers, Provider ABC; **ADR-0002** assembler shot normalization; **ADR-0003** licensed-only image sourcing; **ADR-0004** AI-centric niche + ingest relevance gate |
 | development | [phase-development.md](phase-development.md) | in-progress | 2026-06-06 | Issues 39–41 + 43 shipped; **Issues 47–50 dashboard v2**; **Issues 51–57 post-v2 backlog**; Issue 42 enablement partial |
 | testing | [phase-testing.md](phase-testing.md) | in-progress | 2026-06-06 | Issue 39 backfill + dashboard tests (31 v2 + **30 for Issues 51–57**) |
-| deployment | [phase-deployment.md](phase-deployment.md) | in-progress | 2026-06-06 | Scheduler XMLs fixed; Hermes director first Directed script; `gen_run` E2E + Hermes cron pending |
+| deployment | [phase-deployment.md](phase-deployment.md) | in-progress | 2026-06-07 | Scheduler XMLs fixed; Hermes director first Directed script; **OpenRouter 401 root-caused (wrong key, not model) — Issue 58 unblocked**; `gen_run` E2E + persistent key-for-scheduler + Hermes cron pending |
 | review | [phase-review.md](phase-review.md) | complete | 2026-05-24 | 4-check policy gate, 6-gate quality screen, AI disclosure compliance (Slice 9), pre-flight checklist |
 
 ---

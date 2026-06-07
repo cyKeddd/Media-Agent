@@ -1,7 +1,7 @@
 # Phase: deployment
 **Project:** Media-Agent (Pivot.6)
 **Status:** in-progress
-**Last updated:** 2026-06-06
+**Last updated:** 2026-06-07
 
 ## Objective
 
@@ -50,6 +50,7 @@ Before any real (non-`--dry-run`) invocation:
 - [2026-05-28] **Post-ADR-0004 sample upload:** clip `092b3504` → YouTube `qRdVYO1Tmfw` via `src.uploader --clip-id`; scheduled `publishAt=2026-06-02T01:00:00Z` (09:00 SGT). Operator HITL approve path exercised.
 - [2026-05-31] **Issue 40 scheduler fix:** XMLs repointed to Desktop tree + `src.gen_run --clips 2`; `MediaAgentWeekly` + `MediaAgentDailyUpload` re-registered and Enabled.
 - [2026-06-06] **Hermes director first run:** Directed script `ebba0850-7d30-4ee5-aee6-8f50ffc6d18a` (topic 130, Gemini Omni) inserted; topic claimed. `gen_run` consume pending operator PowerShell run.
+- [2026-06-07] **OpenRouter 401 root-caused (Issue 58 unblocked):** the 401 on `kwaivgi/kling-v3.0-std` was a rejected **key**, not model access (model failures = 403/404). Verified the real key live: `/api/v1/key`→200, `/api/v1/credits`→~$20 left, `POST /api/v1/videos`→202 (job rendered). Config/model/endpoint/`openrouter_kling.py` all correct — unchanged. **Pipeline does not load `.env`** (no `load_dotenv` in `src/`); `OPENROUTER_API_KEY` must be set in the actual environment. Operator `gen_run` consume still pending.
 
 ## Artifacts
 
@@ -74,10 +75,12 @@ Before any real (non-`--dry-run`) invocation:
 - Slice 8/9 commit + push (2026-05-22)
 - [issues-39-42-tdd](.sessions/2026-05-31__issues-39-42-tdd/handoff.md) — 2026-05-31
 - [hermes-director-first-directed-script](../.sessions/2026-06-06__hermes-director-first-directed-script/handoff.md) — 2026-06-06
+- [openrouter-401-resolved-issue-58-unblocked](../.sessions/2026-06-07__openrouter-401-resolved-issue-58-unblocked/handoff.md) — 2026-06-07
 
 ## Open Items
 
-- **Issue 58 E2E** — Run `python -m src.gen_run --clips 1` to consume directed script `ebba0850-…`; then schedule Hermes cron (Saturday SGT).
+- **Issue 58 E2E** — OpenRouter 401 resolved (was wrong/missing key, not model access). Run `python -m src.gen_run --clips 1` from PowerShell with `$env:OPENROUTER_API_KEY` set to consume directed script `ebba0850-…`; then schedule Hermes cron (Saturday SGT).
+- **[BLOCKING for unattended runs]** `OPENROUTER_API_KEY` is **not** persisted for Task Scheduler. The pipeline reads `os.environ` directly and does **not** load `.env`. Set a **User** env var (`[Environment]::SetEnvironmentVariable("OPENROUTER_API_KEY", "<key>", "User")`) or add it to the scheduler XML, else the Sun 02:00 weekly run fails with 401 like Hermes did.
 - **[BLOCKING for Slice 10]** Apply migration: `python scripts/migrate_pivot_6_3.py --dry-run` then live. Back up `data/state.db` first.
 - **[BLOCKING for Slice 10]** Assemble MP4 from 8 spike shots in `data/ai_gen_shots/spike_2026-05-21/` → `output/pending/`.
 - ~~Task Scheduler XMLs not yet re-registered~~ — **fixed 2026-05-31** (Issue 40).
