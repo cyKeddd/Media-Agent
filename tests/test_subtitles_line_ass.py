@@ -1,7 +1,9 @@
 """Tests for subtitles.line_ass — line-at-a-time ASS writer (Pivot.6)."""
 from __future__ import annotations
 
-from src.subtitles.line_ass import render_line_ass, wrap_words_to_lines
+import re
+
+from src.subtitles.line_ass import FADE_MS, render_line_ass, wrap_words_to_lines
 
 
 def _w(word: str, start: float, end: float) -> dict:
@@ -10,6 +12,13 @@ def _w(word: str, start: float, end: float) -> dict:
 
 def _dialogue_lines(ass: str) -> list[str]:
     return [l for l in ass.splitlines() if l.startswith("Dialogue:")]
+
+
+def _visible_text(dialogue_line: str) -> str:
+    """The text a viewer actually sees: the 10th comma-field with ASS override
+    blocks ({...}) stripped."""
+    body = dialogue_line.split(",", 9)[9]
+    return re.sub(r"\{[^}]*\}", "", body)
 
 
 # ---------------------------------------------------------------------------
@@ -82,9 +91,11 @@ def test_render_dialogue_has_pos_540_1500():
 
 
 def test_render_dialogue_has_fade_in():
+    # Issue 68 shortened the reveal; assert against the module constant rather
+    # than a hardcoded 100 ms so a future restyle re-tunes one place, not two.
     ass = render_line_ass([_w("hi", 0.0, 0.5)])
     dlines = _dialogue_lines(ass)
-    assert r"\fad(100,0)" in dlines[0]
+    assert rf"\fad({FADE_MS},0)" in dlines[0]
 
 
 def test_render_empty_words_header_only():
@@ -94,9 +105,12 @@ def test_render_empty_words_header_only():
 
 
 def test_render_line_text_is_words_joined():
+    # Issue 68 interleaves accent-colour overrides between words, so the words
+    # are no longer contiguous in the raw line. The guard that still matters is
+    # that the *rendered* text — overrides stripped — is the words joined.
     ass = render_line_ass([_w("Hello", 0.0, 0.4), _w("world", 0.5, 0.9)])
     dlines = _dialogue_lines(ass)
-    assert "Hello world" in dlines[0]
+    assert _visible_text(dlines[0]) == "Hello world"
 
 
 def test_render_timing_in_ass_format():

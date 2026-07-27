@@ -9,8 +9,17 @@ Output: ASS file content with one Dialogue event per display line.
 
 Layout (same anchors as karaoke writer):
   1080x1920 canvas, pos(540,1500), an5 (middle-center).
-  fad(100,0): 100ms fade-in, no fade-out.
+  fad(FADE_MS,0) + a slight scale-in transform on line entry.
   Max 28 chars/line, broken at word boundaries.
+
+Typography restyle (Issue 68): Impact -> Arial Black. Arial Black is
+confirmed present on the render box via the Windows font registry
+(HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts ->
+"Arial Black (TrueType)" = ariblk.ttf) so libass resolves the family by
+name without a silent fallback. The salient token per line (first
+numeric token, else the longest non-stopword) is rendered in
+ACCENT_COLOR; everything else stays PRIMARY_COLOR. A line with no
+emphasis candidate renders with no colour-override tags at all.
 """
 
 from __future__ import annotations
@@ -21,13 +30,28 @@ PLAY_RES_X = 1080
 PLAY_RES_Y = 1920
 ANCHOR_X = 540
 ANCHOR_Y = 1500
-FONT_NAME = "Impact"
-FONT_SIZE = 120
+FONT_NAME = "Arial Black"
+FONT_SIZE = 100
 PRIMARY_COLOR = "&H00FFFFFF"
 OUTLINE_COLOR = "&H00000000"
-OUTLINE_PX = 8
+OUTLINE_PX = 6
 MAX_CHARS = 28
-FADE_MS = 100
+FADE_MS = 60
+SCALE_START_PCT = 80
+
+# Inline override-tag colours (BBGGRR, no alpha byte -- distinct format
+# from the AABBGGRR style-line colours above).
+ACCENT_COLOR = "&H00D1FF&"
+PRIMARY_COLOR_TAG = "&HFFFFFF&"
+
+# Words too common to ever be the emphasised token, even if they happen
+# to be the longest word on a short line.
+_STOPWORDS = {
+    "a", "an", "the", "is", "are", "was", "were", "of", "to", "in", "on",
+    "for", "and", "or", "but", "at", "it", "its", "that", "this", "with",
+    "as", "by", "be", "from", "has", "have", "had", "will", "just", "not",
+    "so", "if", "than", "then", "you", "your", "we", "our", "they", "them",
+}
 
 ASS_HEADER = (
     "[Script Info]\n"
@@ -54,6 +78,51 @@ def _escape(text: str) -> str:
     text = text.replace("{", "\\{").replace("}", "\\}")
     text = text.replace("\n", " ").replace("\r", " ")
     return text
+
+
+def _pick_accent_word(words: list[str]) -> str | None:
+    """Pick the salient token in a line for accent-colour emphasis.
+
+    Preference: first token containing a digit (stats/specs read as
+    numerically salient), else the longest non-stopword token. Returns
+    None when no candidate qualifies -- the line then renders entirely
+    in the primary colour.
+    """
+    for w in words:
+        if any(c.isdigit() for c in w):
+            return w
+
+    candidates = [
+        w for w in words
+        if len(w) > 2 and w.strip(".,!?;:'\"").lower() not in _STOPWORDS
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=len)
+
+
+def _style_line_text(text: str) -> str:
+    """Escape and accent-colour a wrapped line's text for the Text field.
+
+    Wraps the single salient token (see _pick_accent_word) in
+    ACCENT_COLOR override tags, resetting to PRIMARY_COLOR_TAG right
+    after it. Escaping is applied per-word so the override tags can
+    never straddle an escaped `{`/`}`/`\\` from the narration text.
+    """
+    words = text.split(" ")
+    accent_word = _pick_accent_word(words)
+    if accent_word is None:
+        return _escape(text)
+
+    accent_idx = words.index(accent_word)
+    styled: list[str] = []
+    for i, w in enumerate(words):
+        esc = _escape(w)
+        if i == accent_idx:
+            styled.append(f"{{\\c{ACCENT_COLOR}}}{esc}{{\\c{PRIMARY_COLOR_TAG}}}")
+        else:
+            styled.append(esc)
+    return " ".join(styled)
 
 
 def _format_time(seconds: float) -> str:
@@ -128,11 +197,14 @@ def render_line_ass(
 
     events: list[str] = []
     pos_tag = f"{{\\an5\\pos({ANCHOR_X},{ANCHOR_Y})}}"
-    fade_tag = f"{{\\fad({fade_ms},0)}}"
+    entry_tag = (
+        f"{{\\fad({fade_ms},0)\\fscx{SCALE_START_PCT}\\fscy{SCALE_START_PCT}"
+        f"\\t(0,{fade_ms},\\fscx100\\fscy100)}}"
+    )
 
     for start_s, end_s, text in lines:
-        safe = _escape(text)
-        text_field = f"{pos_tag}{fade_tag}{safe}"
+        styled = _style_line_text(text)
+        text_field = f"{pos_tag}{entry_tag}{styled}"
         events.append(
             f"Dialogue: 0,{_format_time(start_s)},{_format_time(end_s)},"
             f"Subtitle,,0,0,0,,{text_field}"
