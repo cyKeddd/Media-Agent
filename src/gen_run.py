@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import sys
 import tempfile
@@ -59,8 +60,9 @@ from src import quality_screen, slot_planner, retention
 
 # Per-clip stage imports at module level so tests can patch src.gen_run.*
 from src.ai_gen.openrouter_kling import OpenRouterKlingClient
+from src.ai_gen.openrouter_seedance import OpenRouterSeedanceClient
 from src.quota_ledger.ledger import SpendCapReached
-from src.ai_gen.base import OpenRouterAuthError
+from src.ai_gen.base import GenerationStatus, OpenRouterAuthError, UnsupportedFirstFrameError
 from src.ai_gen.runner import DEFAULT_SHOT_COST_ESTIMATE_CENTS, generate_shots
 from src.assembler.build import build_assembler_argv, write_concat_list
 from src.assembler.ken_burns import build_ken_burns_argv
@@ -74,6 +76,7 @@ from src.narration.synth import synthesize
 from src.policy_gate.evaluator import evaluate_clip_policy
 from src.scripter.shots import normalize_shots
 from src.scripter.shot_plan import resolve_shot_plan
+from src.scripter.shot_router import ClipCostCeilingError, check_combined_clip_ceiling
 from src.subtitles.line_ass import write_line_ass_file
 
 
@@ -237,12 +240,52 @@ def _run_assembly(
     )
 
 
+def _ken_burns_render_shot(cfg, duration_s: float, index: int):
+    """Build the Ken Burns fallback renderer for one shot (ADR-0009: retained
+    as the fallback motion path when image-to-video is unavailable)."""
+
+    def _render(image_path: Path, dest: Path) -> Path:
+        tmp = dest.with_suffix(".tmp.mp4")
+        argv = build_ken_burns_argv(
+            image_path,
+            tmp,
+            duration_s=duration_s,
+            resolution=tuple(cfg.output_resolution),
+            zoom_rate=float(getattr(cfg, "ken_burns_zoom_rate", 0.0015)),
+            gradient_luma_max=int(getattr(cfg, "ken_burns_gradient_luma_max", 45)),
+            gradient_saturation_max=float(
+                getattr(cfg, "ken_burns_gradient_saturation_max", 0.35)
+            ),
+            nvenc_preset=cfg.nvenc_preset,
+            nvenc_cq=int(cfg.nvenc_cq),
+        )
+        result = run_ffmpeg(argv, tmp)
+        if result.returncode != 0 or result.output_size_bytes == 0:
+            if tmp.exists():
+                tmp.unlink()
+            raise RuntimeError(f"Ken Burns render failed for shot {index}")
+        os.replace(tmp, dest)
+        return dest
+
+    return _render
+
+
 def _render_real_image_shot(
     shot: dict,
     index: int,
     shots_dir: Path,
     cfg,
+    *,
+    repo: Repository | None = None,
+    script_id: str | None = None,
+    openrouter_api_key: str | None = None,
 ) -> Path:
+    """Render one real-image Shot: animate its already-resolved still via
+    image-to-video (ADR-0009 step 2), falling back to Ken Burns when
+    image-to-video is unavailable or unconfigured. The still-SOURCING
+    decision (licensed vs. degrade) already happened upstream in
+    resolve_shot_plan / resolve_licensed_image — this function only
+    animates the still it is handed."""
     cached = shot.get("image_asset")
     if cached is not None:
         image_path = Path(cached.path)
@@ -251,28 +294,60 @@ def _render_real_image_shot(
         query = shot.get("search_query")
         asset = fetch_image(entity, query, cfg)
         image_path = Path(asset.path)
+
     dest = shots_dir / f"shot_{index:02d}.mp4"
-    tmp = dest.with_suffix(".tmp.mp4")
-    argv = build_ken_burns_argv(
-        image_path,
-        tmp,
-        duration_s=float(shot.get("duration_s", 4)),
-        resolution=tuple(cfg.output_resolution),
-        zoom_rate=float(getattr(cfg, "ken_burns_zoom_rate", 0.0015)),
-        gradient_luma_max=int(getattr(cfg, "ken_burns_gradient_luma_max", 45)),
-        gradient_saturation_max=float(
-            getattr(cfg, "ken_burns_gradient_saturation_max", 0.35)
-        ),
-        nvenc_preset=cfg.nvenc_preset,
-        nvenc_cq=int(cfg.nvenc_cq),
-    )
-    result = run_ffmpeg(argv, tmp)
-    if result.returncode != 0 or result.output_size_bytes == 0:
-        if tmp.exists():
-            tmp.unlink()
-        raise RuntimeError(f"Ken Burns render failed for shot {index}")
-    os.replace(tmp, dest)
-    return dest
+    duration_s = float(shot.get("duration_s", 4))
+    ken_burns_render = _ken_burns_render_shot(cfg, duration_s, index)
+
+    ai_cfg = cfg.ai_gen
+    video_provider = None
+    if openrouter_api_key:
+        video_provider = OpenRouterSeedanceClient(
+            api_key=openrouter_api_key,
+            model=ai_cfg.seedance_model,
+            rate_cents_per_second=ai_cfg.seedance_rate_cents_per_second,
+        )
+
+    if video_provider is not None:
+        entity_name = shot.get("entity", "")
+        prompt = f"cinematic product shot, {entity_name}".strip(", ")
+        video_cost_estimate = math.ceil(
+            duration_s * ai_cfg.seedance_rate_cents_per_second
+        )
+        try:
+            # INV-2: combined (still + video) per-Clip spend checked BEFORE
+            # this billable call — never after.
+            check_combined_clip_ceiling(
+                repo, script_id, ai_cfg.per_clip_cost_cents_max, video_cost_estimate,
+            )
+            external_id = video_provider.submit(
+                prompt, duration_s=int(duration_s), aspect_ratio="9:16",
+                first_frame_path=image_path,
+            )
+            result = video_provider.wait_for_completion(external_id)
+            if result.status == GenerationStatus.SUCCEEDED and result.download_url:
+                tmp = dest.with_suffix(".tmp.mp4")
+                video_provider.download(result.download_url, tmp)
+                if repo is not None and script_id and result.cost_cents:
+                    repo.quota_record(
+                        "openrouter", result.cost_cents, provider="openrouter",
+                        script_id=script_id,
+                    )
+                os.replace(tmp, dest)
+                return dest
+            logger.warning(
+                "seedance i2v failed for shot {}: {}; falling back to Ken Burns",
+                index, result.error,
+            )
+        except UnsupportedFirstFrameError:
+            logger.info(
+                "seedance: image-to-video unavailable for shot {}; "
+                "Ken Burns fallback", index,
+            )
+        except ClipCostCeilingError:
+            raise
+
+    return ken_burns_render(image_path, dest)
 
 
 def _generate_clip(
@@ -380,7 +455,13 @@ def _generate_clip(
     ai_idx = 0
     for i, shot in enumerate(resolved):
         if shot.get("kind") == "real_image":
-            shot_paths.append(_render_real_image_shot(shot, i, shots_dir, cfg))
+            shot_paths.append(
+                _render_real_image_shot(
+                    shot, i, shots_dir, cfg,
+                    repo=repo, script_id=clip_id,
+                    openrouter_api_key=openrouter_api_key,
+                )
+            )
         else:
             shot_paths.append(ai_paths[ai_idx])
             ai_idx += 1
