@@ -24,6 +24,20 @@ class UnsupportedFirstFrameError(NotImplementedError):
     """
 
 
+class OpenRouterAuthError(RuntimeError):
+    """Raised by a provider when OpenRouter rejects a request with 401/403.
+
+    Issue 61 / INV-12: an invalid or revoked key will never succeed on
+    retry, so a provider MUST raise this (never retry it) on 401/403,
+    letting the caller abort the run immediately and append an
+    `auth_failed` alert instead of burning the transient-failure retry
+    budget.
+
+    INV-6: the message must never contain the key value — callers may log
+    or alert on `str(exc)` directly.
+    """
+
+
 class GenerationStatus(str, Enum):
     QUEUED = "queued"
     RUNNING = "running"

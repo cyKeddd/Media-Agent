@@ -25,12 +25,12 @@ from pathlib import Path
 import requests
 from tenacity import (
     retry,
-    retry_if_exception_type,
+    retry_if_exception,
     stop_after_attempt,
     wait_exponential,
 )
 
-from .base import GenerationStatus, Provider, ShotResult
+from .base import GenerationStatus, OpenRouterAuthError, Provider, ShotResult
 
 _BASE_URL = "https://openrouter.ai/api/v1"
 
@@ -40,6 +40,22 @@ _STATUS_MAP: dict[str, GenerationStatus] = {
     "completed": GenerationStatus.SUCCEEDED,
     "failed": GenerationStatus.FAILED,
 }
+
+
+def _is_retryable(exc: BaseException) -> bool:
+    """Issue 61 / INV-12: 5xx / connection / timeout retry; 401/403 are
+    raised as OpenRouterAuthError by _check_response before reaching this
+    predicate and are never retried — an invalid key can never succeed on
+    retry, so no attempt is wasted on the retry budget.
+
+    Mirrors OpenRouterSeedanceClient._is_retryable (openrouter_seedance.py)
+    so the two OpenRouter-backed providers share one retry policy."""
+    if isinstance(exc, (requests.ConnectionError, requests.Timeout)):
+        return True
+    if isinstance(exc, requests.HTTPError):
+        status = exc.response.status_code if exc.response is not None else None
+        return status is not None and 500 <= status < 600
+    return False
 
 
 class OpenRouterKlingClient(Provider):
@@ -152,8 +168,20 @@ class OpenRouterKlingClient(Provider):
             raw=response,
         )
 
+    def _check_response(self, resp: requests.Response) -> None:
+        """Issue 61 / INV-12 / INV-6: translate a 401/403 into a typed,
+        key-free auth error before raise_for_status's generic HTTPError has
+        a chance to surface. Any other error status still goes through the
+        normal requests exception (retried per _is_retryable if 5xx)."""
+        if resp.status_code in (401, 403):
+            raise OpenRouterAuthError(
+                f"OpenRouter authentication failed (HTTP {resp.status_code}); "
+                "check OPENROUTER_API_KEY"
+            )
+        resp.raise_for_status()
+
     @retry(
-        retry=retry_if_exception_type((requests.ConnectionError, requests.Timeout)),
+        retry=retry_if_exception(_is_retryable),
         wait=wait_exponential(min=2, max=30),
         stop=stop_after_attempt(3),
         reraise=True,
@@ -165,11 +193,11 @@ class OpenRouterKlingClient(Provider):
             headers=self._headers(),
             timeout=30,
         )
-        resp.raise_for_status()
+        self._check_response(resp)
         return resp.json()
 
     @retry(
-        retry=retry_if_exception_type((requests.ConnectionError, requests.Timeout)),
+        retry=retry_if_exception(_is_retryable),
         wait=wait_exponential(min=2, max=30),
         stop=stop_after_attempt(3),
         reraise=True,
@@ -180,5 +208,5 @@ class OpenRouterKlingClient(Provider):
             headers=self._headers(),
             timeout=30,
         )
-        resp.raise_for_status()
+        self._check_response(resp)
         return resp.json()
