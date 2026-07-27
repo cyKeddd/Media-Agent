@@ -14,6 +14,16 @@ from enum import Enum
 from pathlib import Path
 
 
+class UnsupportedFirstFrameError(NotImplementedError):
+    """Raised by Provider.submit() when called with first_frame_path on a
+    provider that cannot do image-to-video conditioning.
+
+    A provider must never silently drop the still and fall back to
+    unconditioned text-to-video — that bills for the wrong generation
+    without telling the caller. Raise this instead.
+    """
+
+
 class GenerationStatus(str, Enum):
     QUEUED = "queued"
     RUNNING = "running"
@@ -44,8 +54,27 @@ class Provider(ABC):
         *,
         duration_s: int = 5,
         aspect_ratio: str = "9:16",
+        first_frame_path: Path | None = None,
     ) -> str:
-        """Submit a generation job. Returns provider-side external_id."""
+        """Submit a generation job. Returns provider-side external_id.
+
+        first_frame_path (ADR-0009): an optional still to condition an
+        image-to-video generation. Providers that cannot do image-to-video
+        MUST raise UnsupportedFirstFrameError when it is not None — never
+        silently ignore it and fall back to text-to-video.
+        """
+
+    def _reject_first_frame(self, first_frame_path: Path | None) -> None:
+        """Helper for subclasses that do not support image-to-video.
+
+        Call this at the top of submit() so an unsupported first_frame_path
+        raises before any billable request is made.
+        """
+        if first_frame_path is not None:
+            raise UnsupportedFirstFrameError(
+                f"{self.provider_name}: does not support first_frame_path "
+                "(image-to-video conditioning)"
+            )
 
     @abstractmethod
     def poll(self, external_id: str) -> ShotResult:

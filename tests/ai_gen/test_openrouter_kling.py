@@ -104,6 +104,56 @@ def test_submit_disables_audio(client):
     assert body["enable_audio"] is False
 
 
+# ---------------------------------------------------------------------------
+# first_frame_path (Issue 63 / ADR-0009)
+# ---------------------------------------------------------------------------
+
+
+def test_submit_with_no_first_frame_payload_is_byte_identical_to_today(client):
+    """Regression guard: first_frame_path defaulting to None must not change
+    the wire payload at all."""
+    mock_resp = _mock_response({"id": "x", "status": "pending"})
+    with patch.object(client._session, "post", return_value=mock_resp) as mock_post:
+        client.submit("weird biology fact", duration_s=10, aspect_ratio="9:16")
+    body = mock_post.call_args[1]["json"]
+    assert body == {
+        "model": "kwaivgi/kling-v3.0-std",
+        "prompt": "weird biology fact",
+        "duration": 10,
+        "aspect_ratio": "9:16",
+        "enable_audio": False,
+    }
+    assert "image" not in body
+
+
+def test_submit_with_explicit_none_first_frame_matches_default(client):
+    mock_resp = _mock_response({"id": "x", "status": "pending"})
+    with patch.object(client._session, "post", return_value=mock_resp) as mock_post:
+        client.submit("prompt", first_frame_path=None)
+    body = mock_post.call_args[1]["json"]
+    assert "image" not in body
+
+
+def test_submit_with_first_frame_includes_image_in_payload(tmp_path, client):
+    still = tmp_path / "still.png"
+    still.write_bytes(b"\x89PNG\r\n\x1a\nfake-png-bytes")
+    mock_resp = _mock_response({"id": "x", "status": "pending"})
+    with patch.object(client._session, "post", return_value=mock_resp) as mock_post:
+        client.submit("prompt", first_frame_path=still)
+    body = mock_post.call_args[1]["json"]
+    assert body["image"].startswith("data:image/png;base64,")
+
+
+def test_submit_with_first_frame_jpeg_uses_jpeg_mime(tmp_path, client):
+    still = tmp_path / "still.jpg"
+    still.write_bytes(b"\xff\xd8\xff\xe0fake-jpeg-bytes")
+    mock_resp = _mock_response({"id": "x", "status": "pending"})
+    with patch.object(client._session, "post", return_value=mock_resp) as mock_post:
+        client.submit("prompt", first_frame_path=still)
+    body = mock_post.call_args[1]["json"]
+    assert body["image"].startswith("data:image/jpeg;base64,")
+
+
 def test_submit_raises_if_no_id(client):
     mock_resp = _mock_response({"status": "pending"})  # missing "id"
     with patch.object(client._session, "post", return_value=mock_resp):

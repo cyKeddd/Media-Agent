@@ -18,6 +18,7 @@ Status mapping (OpenRouter → GenerationStatus):
 
 from __future__ import annotations
 
+import base64
 import os
 from pathlib import Path
 
@@ -71,8 +72,15 @@ class OpenRouterKlingClient(Provider):
         *,
         duration_s: int = 5,
         aspect_ratio: str = "9:16",
+        first_frame_path: Path | None = None,
     ) -> str:
-        """Submit a text-to-video job. Returns OpenRouter job id."""
+        """Submit a video job. Returns OpenRouter job id.
+
+        When first_frame_path is None, the request body is byte-identical to
+        the text-to-video-only payload (regression guard — see
+        tests/ai_gen/test_openrouter_kling.py). When given, Kling v3.0's
+        first-frame image-to-video conditioning is used instead.
+        """
         body = {
             "model": self.model,
             "prompt": prompt,
@@ -80,6 +88,8 @@ class OpenRouterKlingClient(Provider):
             "aspect_ratio": aspect_ratio,
             "enable_audio": False,
         }
+        if first_frame_path is not None:
+            body["image"] = self._encode_first_frame(first_frame_path)
         response = self._post_with_retry("/videos", body)
         job_id = response.get("id")
         if not job_id:
@@ -105,6 +115,14 @@ class OpenRouterKlingClient(Provider):
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _encode_first_frame(path: Path) -> str:
+        """Base64 data-URI encode a first-frame still for image-to-video
+        conditioning."""
+        data = path.read_bytes()
+        mime = "image/png" if path.suffix.lower() == ".png" else "image/jpeg"
+        return f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}"
 
     def _parse_response(self, external_id: str, response: dict) -> ShotResult:
         raw_status = response.get("status", "pending")
