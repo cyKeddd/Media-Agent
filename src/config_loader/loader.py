@@ -61,6 +61,9 @@ class AiGenConfig(BaseModel):
     # drifting once the still provider exists.
     still_cost_cents_max: int = 5
     still_clip_cost_cents_max: int = 20
+    # Issue 64 — Nano Banana 2 (google/gemini-3.1-flash-image) still model id,
+    # read from config so NanoBananaProvider never hardcodes it (INV-10).
+    still_model: str = "google/gemini-3.1-flash-image"
     max_concurrent: int = 2
     shots_per_clip_min: int = 1
     shots_per_clip_max: int = 3

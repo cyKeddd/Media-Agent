@@ -123,6 +123,7 @@ ai_gen:
   weekly_spend_cents_ceiling: 800     # Issue 62 (INV-1): rolling 7x24h OpenRouter total, $8/week budget
   still_cost_cents_max: 5             # Issue 62 (INV-3): one Generated still <= 5c; enforced in Issue 64
   still_clip_cost_cents_max: 20       # Issue 62 (INV-3): all stills for one Clip <= 20c; enforced in Issue 64
+  still_model: "google/gemini-3.1-flash-image"    # Issue 64 (ADR-0009): Nano Banana 2, ~$0.004/still
   seedance_model: "bytedance/seedance-2.0-fast"   # ADR-0009 image-to-video provider (Issue 65)
   seedance_rate_cents_per_second: 5.38            # $0.0538/s; 4s shot = 22c rounded up
 
