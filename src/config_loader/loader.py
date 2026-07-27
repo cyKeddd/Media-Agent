@@ -26,6 +26,9 @@ class HnConfig(BaseModel):
     item_url_template: str = "https://hacker-news.firebaseio.com/v0/item/{id}.json"
     max_stories: int = 30
     corroboration_weight: float = 2.0
+    # Issue 69 — promote HN front-page to a Topic source (in addition to its
+    # existing Trending-corroboration ranking role, which is unaffected).
+    topic_source_enabled: bool = True
 
 
 class TopicIngestConfig(BaseModel):
@@ -49,6 +52,15 @@ class AiGenConfig(BaseModel):
     model: str = "kwaivgi/kling-v3.0-std"
     per_clip_cost_cents_max: int
     daily_spend_cents_ceiling: int
+    # Issue 62 — rolling 7x24h OpenRouter spend ceiling (INV-1). Default 800c
+    # matches the $8/week budget; gen_run refuses billable calls that would
+    # cross it rather than issuing them and finding out after the fact.
+    weekly_spend_cents_ceiling: int = 800
+    # Issue 62 — INV-3 config keys for the still provider landing in Issue 64.
+    # Enforcement is not wired up here; these just stop the ceiling from
+    # drifting once the still provider exists.
+    still_cost_cents_max: int = 5
+    still_clip_cost_cents_max: int = 20
     max_concurrent: int = 2
     shots_per_clip_min: int = 1
     shots_per_clip_max: int = 3
@@ -253,6 +265,11 @@ class Config(BaseModel):
     # older than this many minutes is swept to success=0 at the next
     # entry-point start. Matches INV-11's gen_run wall-clock budget.
     run_hang_minutes: int = 90
+
+    # Liveness detection (Issue 61 / INV-5) — if no Clip has been rendered
+    # within this many days, a `liveness_stalled` alert is appended on the
+    # next run of either entry point (at most once per calendar day).
+    liveness_stale_days: int = 7
 
     # Pivot.6 sub-models
     topic_ingest: TopicIngestConfig = Field(default_factory=TopicIngestConfig)

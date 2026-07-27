@@ -111,12 +111,18 @@ videos_list_unit_cost: 1
 # --- Run hang detection (Issue 60) ---
 run_hang_minutes: 90                                  # abandoned-run sweep threshold; matches INV-11's gen_run budget
 
+# --- Liveness detection (Issue 61 / INV-5) ---
+liveness_stale_days: 7                                # no Clip rendered within this many days -> liveness_stalled alert (at most once/day)
+
 # --- AI generation (Kling / OpenRouter) ---
 # Top up OPENROUTER_API_KEY before running ai_gen slice.
 ai_gen:
   model: "kwaivgi/kling-v3.0-std"
-  per_clip_cost_cents_max: 300        # $20/mo ÷ 8 videos = $2.50; ~67¢/shot → ≥1 licensed image required (allow ~2 AI shots)
-  daily_spend_cents_ceiling: 500      # $5.00/day ceiling
+  per_clip_cost_cents_max: 150        # Issue 62: 5 clips/week at ~88c leaves ~45% headroom
+  daily_spend_cents_ceiling: 300      # Issue 62: secondary burst guard — one day can't eat the week
+  weekly_spend_cents_ceiling: 800     # Issue 62 (INV-1): rolling 7x24h OpenRouter total, $8/week budget
+  still_cost_cents_max: 5             # Issue 62 (INV-3): one Generated still <= 5c; enforced in Issue 64
+  still_clip_cost_cents_max: 20       # Issue 62 (INV-3): all stills for one Clip <= 20c; enforced in Issue 64
   seedance_model: "bytedance/seedance-2.0-fast"   # ADR-0009 image-to-video provider (Issue 65)
   seedance_rate_cents_per_second: 5.38            # $0.0538/s; 4s shot = 22c rounded up
 
@@ -141,6 +147,8 @@ ken_burns_gradient_luma_max: 45
 ken_burns_gradient_saturation_max: 0.35
 
 # --- Topic ingest (RSS) ---
+# recency_hours stays at 48 (Issue 69) — narrowing to 24 is deferred until
+# freshness-feed volume is demonstrably healthy; not enabled in this issue.
 topic_ingest:
   feeds:
     - "https://raw.githubusercontent.com/Olshansk/rss-feeds/main/feeds/feed_anthropic_news.xml"
@@ -150,6 +158,10 @@ topic_ingest:
     - "https://huggingface.co/blog/feed.xml"
     - "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml"
     - "https://arstechnica.com/ai/feed/"
+    - "https://www.techmeme.com/feed.xml"
+    - "https://news.google.com/rss/search?q=%22AI+model%22+when:2d&hl=en-US&gl=US&ceid=US:en"
+    - "https://news.google.com/rss/search?q=%22AI+feature%22+when:2d&hl=en-US&gl=US&ceid=US:en"
+    - "https://news.google.com/rss/search?q=%22AI+chip%22+when:2d&hl=en-US&gl=US&ceid=US:en"
   niche_gate:
     enabled: true
     low_yield_threshold: 1
@@ -160,6 +172,9 @@ topic_ingest:
     item_url_template: "https://hacker-news.firebaseio.com/v0/item/{id}.json"
     max_stories: 30
     corroboration_weight: 2.0
+    # Issue 69 — HN front page also becomes a Topic source, reusing this same
+    # client. Trending-corroboration (scripter Stage A) role is unchanged.
+    topic_source_enabled: true
 
 scripter:
   source_authority:
@@ -170,6 +185,13 @@ scripter:
     "https://huggingface.co/blog/feed.xml": 1.1
     "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml": 0.9
     "https://arstechnica.com/ai/feed/": 0.9
+    # Issue 69 — aggregators surface a story early but rank below primary
+    # vendor blogs; the vendor blog stays the authority for narration.
+    "https://www.techmeme.com/feed.xml": 0.8
+    "hacker-news": 0.6
+    "https://news.google.com/rss/search?q=%22AI+model%22+when:2d&hl=en-US&gl=US&ceid=US:en": 0.7
+    "https://news.google.com/rss/search?q=%22AI+feature%22+when:2d&hl=en-US&gl=US&ceid=US:en": 0.7
+    "https://news.google.com/rss/search?q=%22AI+chip%22+when:2d&hl=en-US&gl=US&ceid=US:en": 0.7
 
 # --- Retention (days) ---
 retention:
