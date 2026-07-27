@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
@@ -544,6 +545,43 @@ class Repository:
             "UPDATE runs SET finished_at=datetime('now'), success=?, summary_json=? WHERE run_id=?",
             (1 if success else 0, summary_json, run_id),
         )
+
+    def sweep_abandoned_runs(self, hang_minutes: int) -> list[sqlite3.Row]:
+        """Finalize `runs` rows abandoned by a hard process death (Issue 60).
+
+        A row qualifies when `finished_at IS NULL` and `started_at` is older
+        than `hang_minutes` ago. Each qualifying row is finalized
+        `success=0` with summary `{"message": "abandoned", "started_at": ...}`.
+
+        Callers MUST invoke this only after the cross-process run lock is
+        held — a genuinely in-flight run held by another process must never
+        be swept out from under it.
+
+        Idempotent: a row already finalized (finished_at set) never matches
+        the WHERE clause again, so a second sweep finalizes nothing new.
+
+        Returns the rows that were swept (run_id, kind, started_at), as they
+        looked before finalization, so callers can emit one alert per row.
+        """
+        cutoff = f"-{int(hang_minutes)} minutes"
+        rows = self.conn.execute(
+            """
+            SELECT run_id, kind, started_at FROM runs
+            WHERE finished_at IS NULL
+              AND started_at < datetime('now', ?)
+            """,
+            (cutoff,),
+        ).fetchall()
+        for row in rows:
+            summary_json = json.dumps(
+                {"message": "abandoned", "started_at": row["started_at"]}
+            )
+            self.conn.execute(
+                "UPDATE runs SET finished_at=datetime('now'), success=0, "
+                "summary_json=? WHERE run_id=?",
+                (summary_json, row["run_id"]),
+            )
+        return rows
 
     # ---- named single-clip lookup (replaces repo.conn.execute inline SQL) ----
 

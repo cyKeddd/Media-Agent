@@ -65,6 +65,25 @@ def _parse_iso_z(s: Optional[str]) -> Optional[datetime]:
         return None
 
 
+def sweep_abandoned_runs(repo: Repository, cfg: Config, logs_dir: Path) -> None:
+    """Finalize `runs` rows abandoned by a hard process death (Issue 60).
+
+    MUST be called only after the run lock is held — see acquire_run_lock in
+    main(). A genuinely in-flight run held by another process is never swept
+    because its lock prevents this process from reaching this call at all.
+    """
+    hang_minutes = getattr(cfg, "run_hang_minutes", 90)
+    swept = repo.sweep_abandoned_runs(hang_minutes)
+    for row in swept:
+        append_alert(
+            logs_dir, kind="run_abandoned",
+            message=(
+                f"run {row['run_id']} (kind={row['kind']}) abandoned; "
+                f"started_at={row['started_at']}"
+            ),
+        )
+
+
 def reconcile_approvals(
     repo: Repository,
     cfg: Config,
@@ -362,6 +381,7 @@ def main() -> int:
             conn = connect(db_path)
             repo = Repository(conn)
             try:
+                sweep_abandoned_runs(repo, cfg, logs_dir)
                 # Build expensive shared clients only in real-upload mode.
                 from src.quota_ledger import QuotaLedger
                 ledger = QuotaLedger(repo.conn, ceiling_units=int(cfg.youtube_quota_ceiling_units))
