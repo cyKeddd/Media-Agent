@@ -1096,3 +1096,36 @@ Fix steps: (1) confirm CUDA 12.x toolkit installed; (2) add `CUDA\v12.x\bin` to 
 - [x] **Issue 57** — `scripts.status='directed'`; `scripts_awaiting_narration()` + narration-only `run_stage_b` branch; `docs/hermes-director-contract.md` (ADR-0008).
 - [~] **Issue 58 (HITL)** — Hermes installed (Nous `nemotron-3-ultra:free`); first **Directed script** written (`ebba0850-7d30-4ee5-aee6-8f50ffc6d18a`, topic 130). **Pending:** `gen_run` E2E render + Hermes cron before Sunday `gen_run`.
 - [x] Tests: +30 across `test_daily_upload_run_row`, `test_retention_output_copies`, `test_dashboard_basename_resolve`, `test_dashboard_next_run`, `test_dashboard_clip_mutation`, `test_scripter_directed` — **61 green** in issue batch.
+
+### Resurrection + image-first polish (Issues 59–70) · PLANNED 2026-07-27 · no code yet
+
+> PRD: `docs/prds/resurrection-and-image-first-polish.md`. ADR: `docs/adr/0009-image-first-shot-generation.md`.
+> Handoff: `.sessions/2026-07-27__resurrection-image-first-grill/handoff.md`.
+> Tracker: GitHub `Media-Agent/Media-Agent` label `Agent Ready` → syncs to Linear team **MED**.
+
+**Outage found 2026-07-27: the channel has produced nothing since 2026-06-02.**
+- Last OpenRouter spend **2026-05-31**; last upload `NPFJiqmd4ro` (2026-06-02); every `generation` run since reports `generate_clips=0` while still flagging `success=true`.
+- Runs 2026-06-22 + 2026-07-18 started and **never finished** (`finished_at IS NULL`); `MediaAgentWeekly` last exited `0xC000013A` on 2026-07-26.
+- **Root cause 1:** `src/gen_run.py` / `src/daily_upload.py` never call `load_dotenv` → no `OPENROUTER_API_KEY` under Task Scheduler → `gen_run.py:305` raises.
+- **Root cause 2:** the `.env` key is a **13-char placeholder** (real keys are ~73, `sk-or-v1-`+64 hex).
+- **No alert fired** — `logs/alerts.md` last written 2026-06-07.
+- **Budget guardrail wrong:** `daily_spend_cents_ceiling: 500` = $5/day = **7× the budget**; no weekly cap exists in code.
+- **Dismissed:** the stale `data/.weekly_run.lock` is *not* a blocker — `acquire_run_lock` uses an advisory `msvcrt` byte lock the OS releases on process death.
+
+**Locked:** budget **$8/wk**; **5 clips/wk**; video `bytedance/seedance-2.0-fast` ($0.0538/s); stills `google/gemini-3.1-flash-image` (Nano Banana 2, ≈$0.004); licensed-source-first, generated still only on miss; `human_review` stays **true**; X/Twitter ingest **deferred** (~$17/wk official vs $8 budget) — freshness via Techmeme + HN-as-source + Google News RSS.
+**ADR-0009:** every Shot is generated image-first then animated image-to-video. Cost/clip **~$2.02 → ~$0.88**.
+
+- [ ] **Issue 59** (P1) — entry points `load_dotenv`; `bootstrap --check` validates key shape. *GitHub #1, `Agent Ready`, synced.*
+- [ ] **Issue 60** (P1) — terminal run state; sweep runs abandoned > 90 min.
+- [ ] **Issue 61** (P1) — `liveness_stalled` alert (7 d); OpenRouter 401/403 aborts immediately, no retry loop.
+- [ ] **Issue 62** (P1) — weekly 800¢ ceiling; per-clip cap reconciled to 150¢ (config drift 300 vs 250).
+- [ ] **Issue 63** (P2) — `Provider.submit()` takes `first_frame_path`; `StillProvider` ABC.
+- [ ] **Issue 64** (P2) — Nano Banana 2 still provider (≤5¢/still, ≤20¢/clip).
+- [ ] **Issue 65** (P2) — Seedance 2.0 Fast image-to-video provider.
+- [ ] **Issue 66** (P2) — image-first routing ladder; licensed source must not be pre-empted by a generated still.
+- [ ] **Issue 67** (P2) — flip runtime defaults + reconcile docs.
+- [ ] **Issue 68** (P3) — subtitle/typography restyle.
+- [ ] **Issue 69** (P3) — freshness feeds (Techmeme, HN source role, Google News).
+- [ ] **Issue 70** (P1, HITL, **only issue with spend authority**, ≤150¢) — live resurrection run + spend reconciliation.
+- [ ] **Blocked:** Issues 60–70 not yet filed in GitHub — `gh issue create` denied by the permission classifier after #59.
+- [ ] **Blocked:** a real funded `OPENROUTER_API_KEY` must replace the placeholder in `.env` before Issue 70.
