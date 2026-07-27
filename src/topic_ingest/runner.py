@@ -17,7 +17,13 @@ from typing import Any, Callable
 from loguru import logger
 
 from src.observability.alerts import append_alert
+from src.topic_ingest.hn import HnItem, fetch_hn_front_page
 from src.topic_ingest.niche_gate import NicheVerdict, classify_niche
+
+# Issue 69 — source_feed label persisted for Topics sourced from the HN
+# front page. Used by scripter.source_authority to rank aggregators below
+# primary vendor blogs.
+HN_SOURCE_LABEL = "hacker-news"
 
 
 # ---------------------------------------------------------------------------
@@ -46,6 +52,17 @@ def _is_title_dup(word_set: set[str], seen_sets: list[set[str]], threshold: floa
 def _niche_gate_enabled(cfg) -> bool:
     ng = getattr(cfg.topic_ingest, "niche_gate", None)
     return bool(ng and getattr(ng, "enabled", False))
+
+
+def _hn_topic_source_enabled(cfg) -> bool:
+    """Issue 69 — HN front page contributes Topics, gated independently of
+    its existing Trending-corroboration role (scripter Stage A, unaffected).
+    Defensive getattr: older configs / test doubles without cfg.topic_ingest.hn
+    simply keep HN out of topic sourcing (backward compatible)."""
+    hn = getattr(cfg.topic_ingest, "hn", None)
+    if hn is None:
+        return False
+    return bool(getattr(hn, "enabled", False)) and bool(getattr(hn, "topic_source_enabled", False))
 
 
 def _apply_niche_gate(
@@ -86,6 +103,7 @@ def fetch_unscripted_topics(
     _parse: Callable[..., Any] | None = None,
     _now: Callable[[], datetime] | None = None,
     _classify_niche: Callable[..., NicheVerdict] | None = None,
+    _fetch_hn: Callable[..., list[HnItem]] | None = None,
     dry_run: bool = False,
 ) -> list[dict]:
     """Fetch RSS feeds, dedup, persist fresh topics. Returns list of inserted topics.
@@ -93,6 +111,9 @@ def fetch_unscripted_topics(
     _parse: injectable feedparser.parse (default: real feedparser)
     _now:   injectable clock (default: datetime.now(UTC))
     _classify_niche: injectable niche gate (default: classify_niche)
+    _fetch_hn: injectable HN front-page fetch (default: fetch_hn_front_page).
+        Issue 69 — reuses the same client already used for Trending
+        corroboration in scripter Stage A; not a second HN client.
     dry_run: if True, compute results but skip all DB and file writes
     """
     if _parse is None:
@@ -209,7 +230,78 @@ def fetch_unscripted_topics(
 
         return batch
 
+    def _collect_hn() -> list[dict]:
+        """Issue 69 — HN front-page items pass through the same recency-window
+        (front page is always "now"), URL-hash + title-jaccard dedup, and
+        niche-gate pipeline as RSS entries, then persist as Topics tagged
+        with HN_SOURCE_LABEL. Reuses fetch_hn_front_page — no second client."""
+        fetch_hn = _fetch_hn or fetch_hn_front_page
+        try:
+            hn_items = fetch_hn(cfg)
+        except Exception as exc:
+            logger.warning("hn topic-source fetch failed: {}", exc)
+            return []
+
+        batch: list[dict] = []
+        for item in hn_items:
+            title = item.title
+            link = item.url
+            if not link or not title:
+                continue
+
+            url_hash = hashlib.sha256(link.encode()).hexdigest()
+            if url_hash in seen_hashes:
+                continue
+
+            normalized = _normalize(title, stopwords)
+            word_set = set(normalized.split())
+            if _is_title_dup(word_set, seen_norm_sets, ti.jaccard_threshold):
+                continue
+
+            summary = None
+
+            if niche_enabled and not _apply_niche_gate(
+                title,
+                summary,
+                cfg,
+                logs_dir=logs_dir,
+                _classify=_classify_niche,
+            ):
+                continue
+
+            if not dry_run:
+                topic_id = repo.insert_topic(
+                    url=link,
+                    title=title,
+                    summary=summary,
+                    source_feed=HN_SOURCE_LABEL,
+                    fetched_at=fetched_at_str,
+                    published_at=None,
+                )
+                repo.insert_seen_topic(
+                    url_hash=url_hash,
+                    title_normalized=normalized,
+                    first_seen_at=fetched_at_str,
+                )
+            else:
+                topic_id = None
+
+            seen_hashes.add(url_hash)
+            seen_norm_sets.append(word_set)
+
+            batch.append({
+                "id": topic_id,
+                "title": title,
+                "url": link,
+                "source_feed": HN_SOURCE_LABEL,
+                "published_at": None,
+            })
+
+        return batch
+
     inserted = _collect(ti.recency_hours)
+    if _hn_topic_source_enabled(cfg):
+        inserted.extend(_collect_hn())
     if niche_enabled and len(inserted) < low_yield_threshold and ti.recency_hours < extended_hours:
         inserted.extend(_collect(extended_hours))
 
