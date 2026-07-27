@@ -39,7 +39,8 @@ def load_env_file(root: Path = ROOT) -> None:
     may legitimately be populated by the shell/scheduler."""
     load_dotenv(root / ".env", override=False)
 from src.observability import (
-    RunLockHeld, acquire_run_lock, append_alert, append_run_row, setup_logging,
+    RunLockHeld, acquire_run_lock, append_alert, append_run_row,
+    check_liveness, setup_logging,
 )
 from src.state import Repository, connect
 
@@ -58,7 +59,9 @@ from src import quality_screen, slot_planner, retention
 
 # Per-clip stage imports at module level so tests can patch src.gen_run.*
 from src.ai_gen.openrouter_kling import OpenRouterKlingClient
-from src.ai_gen.runner import generate_shots
+from src.quota_ledger.ledger import SpendCapReached
+from src.ai_gen.base import OpenRouterAuthError
+from src.ai_gen.runner import DEFAULT_SHOT_COST_ESTIMATE_CENTS, generate_shots
 from src.assembler.build import build_assembler_argv, write_concat_list
 from src.assembler.ken_burns import build_ken_burns_argv
 from src.editor.ffmpeg_runner import run_ffmpeg
@@ -334,10 +337,25 @@ def _generate_clip(
     ]
     ai_paths: list[Path] = []
     if ai_shots:
+        track_quota = isinstance(repo, Repository)
+        if track_quota:
+            # Issue 62 / INV-1 — check the rolling 7x24h OpenRouter ceiling
+            # BEFORE issuing the billable call. A call that would cross it is
+            # refused, not attempted: zero provider calls, no partial charge.
+            weekly_ceiling = getattr(ai_cfg, "weekly_spend_cents_ceiling", 800)
+            projected_cents = len(ai_shots) * DEFAULT_SHOT_COST_ESTIMATE_CENTS
+            if repo.quota_would_exceed_week(
+                projected_cents, weekly_ceiling, provider="openrouter",
+            ):
+                raise SpendCapReached(
+                    f"clip {clip_id}: projected OpenRouter cost {projected_cents}c "
+                    f"would push the rolling 7d total "
+                    f"({repo.quota_rolling_week_total(provider='openrouter')}c) past "
+                    f"weekly_spend_cents_ceiling={weekly_ceiling}c"
+                )
         if not openrouter_api_key:
             raise RuntimeError("OPENROUTER_API_KEY required for ai_video shots")
         client = OpenRouterKlingClient(api_key=openrouter_api_key)
-        track_quota = isinstance(repo, Repository)
         ai_paths = generate_shots(
             ai_shots, shots_dir, client,
             max_concurrent=ai_cfg.max_concurrent,
@@ -575,6 +593,26 @@ def run_generation(
                         repo, script, out, duration_s=duration_s,
                     )
                 clips_generated += 1
+            except SpendCapReached as exc:
+                # Issue 62 / INV-1 — a budget stop is a normal outcome, not a
+                # failure: refuse the remaining calls, alert, and finish the
+                # run success=1 with a capped summary rather than raising.
+                logger.warning("gen_run: {}", exc)
+                append_alert(logs_dir, kind="spend_cap_reached", message=str(exc))
+                summary["capped"] = True
+                summary["capped_reason"] = str(exc)
+                break
+            except OpenRouterAuthError as exc:
+                # Issue 61 / INV-12 — an invalid key will never succeed on
+                # retry, so this aborts the whole run rather than moving to the
+                # next script. Distinct from the transient-failure path and from
+                # the spend cap: this is a genuine failure, so we alert and
+                # re-raise, letting the outer handler finalize the run
+                # success=0. str(exc) carries no key material (INV-6).
+                logger.error("gen_run: OpenRouter auth failed: {}", exc)
+                append_alert(logs_dir, kind="auth_failed", message=str(exc))
+                summary["auth_failed"] = True
+                raise
             except ImageFetchError as exc:
                 logger.error(
                     "gen_run: image fetch failed for {}: {}",
@@ -654,6 +692,7 @@ def main() -> int:
             repo = Repository(conn)
             try:
                 sweep_abandoned_runs(repo, cfg, logs_dir)
+                check_liveness(repo, cfg, logs_dir)
                 openrouter_api_key = os.environ.get("OPENROUTER_API_KEY")
                 ollama_host = os.environ.get("OLLAMA_HOST")
                 success, summary = run_generation(

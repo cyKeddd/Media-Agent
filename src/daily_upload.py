@@ -33,7 +33,8 @@ from loguru import logger
 
 from src.config_loader import Config, load_config
 from src.observability import (
-    RunLockHeld, acquire_run_lock, append_alert, append_run_row, setup_logging,
+    RunLockHeld, acquire_run_lock, append_alert, append_run_row,
+    check_liveness, setup_logging,
 )
 from src.state import Repository, connect
 from src.uploader.publish_at import format_publish_at_iso_z
@@ -382,6 +383,7 @@ def main() -> int:
             repo = Repository(conn)
             try:
                 sweep_abandoned_runs(repo, cfg, logs_dir)
+                check_liveness(repo, cfg, logs_dir)
                 # Build expensive shared clients only in real-upload mode.
                 from src.quota_ledger import QuotaLedger
                 ledger = QuotaLedger(repo.conn, ceiling_units=int(cfg.youtube_quota_ceiling_units))
