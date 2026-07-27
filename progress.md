@@ -1117,7 +1117,7 @@ Fix steps: (1) confirm CUDA 12.x toolkit installed; (2) add `CUDA\v12.x\bin` to 
 
 - [ ] **Issue 59** (P1) — entry points `load_dotenv`; `bootstrap --check` validates key shape. *GitHub #1, `Agent Ready`, synced.*
 - [ ] **Issue 60** (P1) — terminal run state; sweep runs abandoned > 90 min.
-- [ ] **Issue 61** (P1) — `liveness_stalled` alert (7 d); OpenRouter 401/403 aborts immediately, no retry loop.
+- [x] **Issue 61** (P1) — `liveness_stalled` alert (7 d); OpenRouter 401/403 aborts immediately, no retry loop. `liveness_stale_days` config key (default 7); `src/observability/liveness.py:check_liveness` queries `clips.created_at` (every clip is inserted with `status='rendered'`), fires `liveness_stalled` at most once/UTC-calendar-day, wired into `gen_run.py`/`daily_upload.py` startup alongside `sweep_abandoned_runs`. `OpenRouterKlingClient` gains `_is_retryable` (mirrors Seedance: 5xx/timeout/connection retry x3, everything else 1 attempt) and `_check_response`, which raises the new `OpenRouterAuthError` (src/ai_gen/base.py) on 401/403 — never contains the key (INV-6), exactly one HTTP attempt (INV-12). Tests: `tests/test_liveness_alerts.py`, `tests/test_openrouter_auth_failfast.py`.
 - [ ] **Issue 62** (P1) — weekly 800¢ ceiling; per-clip cap reconciled to 150¢ (config drift 300 vs 250).
 - [ ] **Issue 63** (P2) — `Provider.submit()` takes `first_frame_path`; `StillProvider` ABC.
 - [ ] **Issue 64** (P2) — Nano Banana 2 still provider (≤5¢/still, ≤20¢/clip).
