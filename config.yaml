@@ -108,12 +108,17 @@ videos_insert_unit_cost: 1600
 search_list_unit_cost: 100
 videos_list_unit_cost: 1
 
+# --- Run hang detection (Issue 60) ---
+run_hang_minutes: 90                                  # abandoned-run sweep threshold; matches INV-11's gen_run budget
+
 # --- AI generation (Kling / OpenRouter) ---
 # Top up OPENROUTER_API_KEY before running ai_gen slice.
 ai_gen:
   model: "kwaivgi/kling-v3.0-std"
-  per_clip_cost_cents_max: 250        # $20/mo ÷ 8 videos = $2.50; ~67¢/shot → ≥1 licensed image required
+  per_clip_cost_cents_max: 300        # $20/mo ÷ 8 videos = $2.50; ~67¢/shot → ≥1 licensed image required (allow ~2 AI shots)
   daily_spend_cents_ceiling: 500      # $5.00/day ceiling
+  seedance_model: "bytedance/seedance-2.0-fast"   # ADR-0009 image-to-video provider (Issue 65)
+  seedance_rate_cents_per_second: 5.38            # $0.0538/s; 4s shot = 22c rounded up
 
 narration:
   engine: kokoro

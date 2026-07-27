@@ -57,6 +57,11 @@ class AiGenConfig(BaseModel):
         "3D animated, Pixar-shaded surface, surreal cinematic lighting, "
         "vertical 9:16, photoreal textures with stylized characters, dark moody atmosphere"
     )
+    # Seedance 2.0 Fast image-to-video (ADR-0009, Issue 65). Model id and
+    # per-second rate live here — never hardcoded in openrouter_seedance.py —
+    # so the cost projection INV-1/INV-2 depend on is config-driven.
+    seedance_model: str = "bytedance/seedance-2.0-fast"
+    seedance_rate_cents_per_second: float = 5.38
 
 
 class TopicScoreWeights(BaseModel):
@@ -243,6 +248,11 @@ class Config(BaseModel):
     youtube_quota_daily_units: int
     youtube_quota_ceiling_units: int
     videos_insert_unit_cost: int
+
+    # Run hang detection (Issue 60) — a runs row with finished_at IS NULL
+    # older than this many minutes is swept to success=0 at the next
+    # entry-point start. Matches INV-11's gen_run wall-clock budget.
+    run_hang_minutes: int = 90
 
     # Pivot.6 sub-models
     topic_ingest: TopicIngestConfig = Field(default_factory=TopicIngestConfig)
