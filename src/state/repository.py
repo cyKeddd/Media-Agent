@@ -614,15 +614,29 @@ class Repository:
         *,
         provider: str = "youtube",
         script_id: str | None = None,
+        recorded_at: str | None = None,
     ) -> None:
-        """Record quota usage for today (UTC)."""
+        """Record quota usage for today (UTC).
+
+        ``recorded_at`` is normally left to the schema default (``datetime('now')``
+        in UTC); tests exercising the rolling-window predicate may pass an
+        explicit UTC timestamp (``YYYY-MM-DD HH:MM:SS``) to backdate a row.
+        """
         from datetime import datetime, timezone
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        self.conn.execute(
-            "INSERT INTO quota_usage (date, endpoint, units, provider, script_id) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (today, endpoint, int(units), provider, script_id),
-        )
+        if recorded_at is None:
+            self.conn.execute(
+                "INSERT INTO quota_usage (date, endpoint, units, provider, script_id) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (today, endpoint, int(units), provider, script_id),
+            )
+        else:
+            self.conn.execute(
+                "INSERT INTO quota_usage "
+                "(date, endpoint, units, provider, script_id, recorded_at) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (today, endpoint, int(units), provider, script_id, recorded_at),
+            )
 
     def quota_script_total(self, script_id: str) -> int:
         """Cumulative OpenRouter spend attributed to a script across all dates."""
@@ -687,6 +701,42 @@ class Repository:
                 (start, end, provider),
             ).fetchone()
         return int(row["s"]) if row else 0
+
+    def quota_rolling_week_total(self, *, provider: str | None = None) -> int:
+        """Sum quota units recorded in the rolling 7x24h window ending now.
+
+        Unlike ``quota_week_total`` (calendar-day bucketed on the ``date``
+        column), this uses the ``recorded_at`` timestamp so a Sunday run sees
+        spend from the previous Sunday onward — a true rolling window, not a
+        calendar-week reset.
+        """
+        from datetime import datetime, timedelta, timezone
+
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+        if provider is None:
+            row = self.conn.execute(
+                "SELECT COALESCE(SUM(units), 0) AS s FROM quota_usage "
+                "WHERE recorded_at >= ?",
+                (cutoff,),
+            ).fetchone()
+        else:
+            row = self.conn.execute(
+                "SELECT COALESCE(SUM(units), 0) AS s FROM quota_usage "
+                "WHERE recorded_at >= ? AND provider=?",
+                (cutoff, provider),
+            ).fetchone()
+        return int(row["s"]) if row else 0
+
+    def quota_would_exceed_week(
+        self, additional_cents: int, ceiling: int, *, provider: str = "openrouter",
+    ) -> bool:
+        """True if recording `additional_cents` more would push the rolling
+        7x24h OpenRouter total past `ceiling`."""
+        return (
+            self.quota_rolling_week_total(provider=provider) + additional_cents
+        ) > ceiling
 
     def count_topics_by_status(self, status: str) -> int:
         """Count topics rows with the given status."""

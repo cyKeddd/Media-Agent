@@ -8,6 +8,17 @@ class QuotaExceeded(Exception):
     pass
 
 
+class SpendCapReached(Exception):
+    """Raised when a billable call (video or still) would cross the rolling
+    7x24h OpenRouter spend ceiling (Issue 62, INV-1).
+
+    The call must be refused, not attempted — callers must raise this
+    *before* invoking the provider, never after a failed/partial charge.
+    """
+
+    pass
+
+
 class QuotaLedger:
     """Per-endpoint, per-UTC-day quota tracker.
 

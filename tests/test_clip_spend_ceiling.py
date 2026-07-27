@@ -142,6 +142,7 @@ def test_retry_after_post_billing_failure_totals_126_not_252(tmp_path):
     cfg = MagicMock()
     cfg.ai_gen.per_clip_cost_cents_max = 250
     cfg.ai_gen.daily_spend_cents_ceiling = 500
+    cfg.ai_gen.weekly_spend_cents_ceiling = 800
     cfg.ai_gen.max_concurrent = 1
     cfg.ai_gen.style_suffix = ""
     cfg.narration.voice = "en-US-GuyNeural"

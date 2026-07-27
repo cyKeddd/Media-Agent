@@ -98,12 +98,12 @@ def generate_shots(
         errs = "; ".join(f"shot {j.index}: {j.error}" for j in failed)
         raise RuntimeError(f"generate_shots: {len(failed)} shot(s) failed — {errs}")
 
-    if repo is not None and script_id:
+    if repo is not None:
         for job in jobs:
             if job.reused:
                 continue
             if job.cost_cents:
-                if repo.quota_would_exceed_script(
+                if script_id and repo.quota_would_exceed_script(
                     script_id, job.cost_cents, per_clip_cost_cents_max or 0,
                 ) and per_clip_cost_cents_max:
                     raise RuntimeError(
@@ -111,25 +111,29 @@ def generate_shots(
                         f"{repo.quota_script_total(script_id) + job.cost_cents}c exceeds "
                         f"per_clip_cost_cents_max={per_clip_cost_cents_max}"
                     )
+                # Record spend unconditionally so the weekly/daily ledgers are
+                # populated even when the caller has no script_id to attribute
+                # to yet — a cap that reads an empty ledger never fires.
                 repo.quota_record(
                     "openrouter",
                     job.cost_cents,
                     provider="openrouter",
                     script_id=script_id,
                 )
-            repo.upsert_generation_job(
-                job_id=job.job_id or str(uuid.uuid4()),
-                script_id=script_id,
-                shot_index=job.index,
-                provider="openrouter_kling",
-                prompt=job.prompt,
-                duration_s=job.duration_s,
-                status="succeeded" if job.output_path else "failed",
-                external_id=job.external_id,
-                output_path=str(job.output_path) if job.output_path else None,
-                cost_cents=job.cost_cents,
-                error=job.error,
-            )
+            if script_id:
+                repo.upsert_generation_job(
+                    job_id=job.job_id or str(uuid.uuid4()),
+                    script_id=script_id,
+                    shot_index=job.index,
+                    provider="openrouter_kling",
+                    prompt=job.prompt,
+                    duration_s=job.duration_s,
+                    status="succeeded" if job.output_path else "failed",
+                    external_id=job.external_id,
+                    output_path=str(job.output_path) if job.output_path else None,
+                    cost_cents=job.cost_cents,
+                    error=job.error,
+                )
 
     return [j.output_path for j in jobs]  # type: ignore[return-value]
 
