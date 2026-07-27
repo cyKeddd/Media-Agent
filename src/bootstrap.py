@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -18,8 +19,23 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from dotenv import load_dotenv
+
 from src.config_loader import load_config
 from src.state import Repository, connect, initialize_schema
+
+# Project root — used to locate .env (Issue 59). Same pattern as
+# src/gen_run.py and src/daily_upload.py.
+ROOT = Path(__file__).resolve().parent.parent
+
+OPENROUTER_KEY_PATTERN = re.compile(r"^sk-or-v1-[0-9a-f]{64}$")
+
+
+def load_env_file(root: Path = ROOT) -> None:
+    """Load `.env` into os.environ, without clobbering variables the real
+    environment already set. A missing .env file is not an error — the env
+    may legitimately be populated by the shell/scheduler."""
+    load_dotenv(root / ".env", override=False)
 
 
 def _ok(name: str, detail: str = "") -> bool:
@@ -140,6 +156,26 @@ def check_copyright_acknowledgement(cfg) -> bool:
     return _ok("copyright-ack", f"value={ack!r}")
 
 
+def check_openrouter_key() -> bool:
+    """Issue 59 — a bad OPENROUTER_API_KEY must fail loudly at check time,
+    not silently at billing time. Never echo the key value; report a length
+    and prefix only, and distinguish absent from malformed."""
+    key = os.environ.get("OPENROUTER_API_KEY")
+    if not key:
+        return _fail("openrouter-api-key", "OPENROUTER_API_KEY is not set (absent)")
+    if not OPENROUTER_KEY_PATTERN.match(key):
+        # Never slice/echo the actual secret — only report whether it starts
+        # with the expected literal prefix, plus a length.
+        starts_ok = key.startswith("sk-or-v1-")
+        prefix_desc = "sk-or-v1-..." if starts_ok else "<unexpected prefix>"
+        return _fail(
+            "openrouter-api-key",
+            f"malformed — expected ^sk-or-v1-[0-9a-f]{{64}}$, got "
+            f"prefix={prefix_desc} len={len(key)}",
+        )
+    return _ok("openrouter-api-key", f"len={len(key)}, prefix='sk-or-v1-...'")
+
+
 def check_dirs(cfg) -> bool:
     needed = [
         cfg.abs_path(cfg.paths.raw_dir),
@@ -186,6 +222,7 @@ def run_checks(cfg) -> int:
         )
     )
     results.append(check_copyright_acknowledgement(cfg))
+    results.append(check_openrouter_key())
     failures = sum(1 for ok in results if not ok)
     print()
     if failures:
@@ -321,6 +358,7 @@ def main() -> int:
     parser.add_argument("--config", default="config.yaml")
     args = parser.parse_args()
 
+    load_env_file()
     cfg = load_config(args.config)
 
     if args.init_db:

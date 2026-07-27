@@ -21,9 +21,23 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from dotenv import load_dotenv
 from loguru import logger
 
 from src.config_loader import Config, load_config
+
+# Project root — used to locate .env (Issue 59). Scheduler-driven entry points
+# never inherit a shell profile, so the process env alone cannot be trusted to
+# carry OPENROUTER_API_KEY etc; .env must be loaded explicitly before config
+# resolution.
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def load_env_file(root: Path = ROOT) -> None:
+    """Load `.env` into os.environ, without clobbering variables the real
+    environment already set. A missing .env file is not an error — the env
+    may legitimately be populated by the shell/scheduler."""
+    load_dotenv(root / ".env", override=False)
 from src.observability import (
     RunLockHeld, acquire_run_lock, append_alert, append_run_row, setup_logging,
 )
@@ -604,6 +618,7 @@ def main() -> int:
     parser.add_argument("--config", default="config.yaml")
     args = parser.parse_args()
 
+    load_env_file()
     cfg = load_config(args.config)
     logs_dir = cfg.abs_path(cfg.paths.logs_dir)
     setup_logging(logs_dir)

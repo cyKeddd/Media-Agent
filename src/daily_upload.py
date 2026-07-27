@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import List, Optional
 from zoneinfo import ZoneInfo
 
+from dotenv import load_dotenv
 from loguru import logger
 
 from src.config_loader import Config, load_config
@@ -36,6 +37,17 @@ from src.observability import (
 )
 from src.state import Repository, connect
 from src.uploader.publish_at import format_publish_at_iso_z
+
+# Project root — used to locate .env (Issue 59). See src/gen_run.py for the
+# same pattern and rationale.
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def load_env_file(root: Path = ROOT) -> None:
+    """Load `.env` into os.environ, without clobbering variables the real
+    environment already set. A missing .env file is not an error — the env
+    may legitimately be populated by the shell/scheduler."""
+    load_dotenv(root / ".env", override=False)
 
 
 def _parse_iso_z(s: Optional[str]) -> Optional[datetime]:
@@ -330,6 +342,7 @@ def main() -> int:
     parser.add_argument("--config", default="config.yaml")
     args = parser.parse_args()
 
+    load_env_file()
     cfg = load_config(args.config)
     logs_dir = cfg.abs_path(cfg.paths.logs_dir)
     setup_logging(logs_dir)
