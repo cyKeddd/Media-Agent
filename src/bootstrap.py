@@ -176,6 +176,48 @@ def check_openrouter_key() -> bool:
     return _ok("openrouter-api-key", f"len={len(key)}, prefix='sk-or-v1-...'")
 
 
+def check_video_still_models_reachable(cfg) -> bool:
+    """Issue 67 — the configured video (`ai_gen.model`) and still
+    (`ai_gen.still_model`) model ids must be present on OpenRouter's live
+    model catalog. A check-time failure here is far cheaper than a Sunday
+    02:00 failure mid-run.
+
+    Offline-safe: SKIPPED (not failed) when OPENROUTER_API_KEY is absent —
+    `check_openrouter_key()` already reports that failure distinctly, so
+    this check would otherwise just be a redundant duplicate failure. Tests
+    monkeypatch `requests.get` so no live network call is made in CI."""
+    key = os.environ.get("OPENROUTER_API_KEY")
+    if not key:
+        print(
+            "  SKIP models-reachable: OPENROUTER_API_KEY not set "
+            "(see openrouter-api-key check)"
+        )
+        return True
+    video_model = cfg.ai_gen.model
+    still_model = cfg.ai_gen.still_model
+    try:
+        import requests
+        resp = requests.get(
+            "https://openrouter.ai/api/v1/models",
+            headers={"Authorization": f"Bearer {key}"},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        available = {m.get("id") for m in resp.json().get("data", [])}
+    except Exception as exc:
+        return _fail(
+            "models-reachable",
+            f"could not reach OpenRouter model catalog: {exc}",
+        )
+    missing = [m for m in (video_model, still_model) if m not in available]
+    if missing:
+        return _fail(
+            "models-reachable",
+            f"configured model id(s) not found in OpenRouter catalog: {missing}",
+        )
+    return _ok("models-reachable", f"video={video_model!r}, still={still_model!r}")
+
+
 def check_dirs(cfg) -> bool:
     needed = [
         cfg.abs_path(cfg.paths.raw_dir),
@@ -223,6 +265,7 @@ def run_checks(cfg) -> int:
     )
     results.append(check_copyright_acknowledgement(cfg))
     results.append(check_openrouter_key())
+    results.append(check_video_still_models_reachable(cfg))
     failures = sum(1 for ok in results if not ok)
     print()
     if failures:

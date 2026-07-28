@@ -48,15 +48,23 @@ Retired because: no source video to slice. Code + ~55 tests deleted.
 **Job:** Resolve **Real-image shot** stills from **Licensed sources** only on the autonomous path (ADR-0003).
 **Sources (production):** `logo` → `wikimedia` → `openverse`. Open web search (`web`) is disabled when `web_fallback_enabled: false`.
 **Outputs:** cached still under `data/images/` + provenance sidecar (source/license/url).
-**Probe:** `probe_licensed_image()` checks cache + licensed sources without consulting web — used by the shot-plan resolver before Kling billing.
+**Probe:** `probe_licensed_image()` checks cache + licensed sources without consulting web — used by the shot-plan resolver before any billable video call.
 
 ## 🆕 `scripter/shot_plan.py` — Licensed shot-plan resolver (Pivot.7, ADR-0003)
 **Job:** Given normalized shots + a licensed probe, return `(final_shots, billable_ai_video_count)`.
-**Behavior:** licensed hit → **Real-image shot** unchanged; licensed miss → degrade to **AI-video shot** before any Kling submission. Wired in `gen_run._generate_clip` ahead of `generate_shots`.
+**Behavior:** licensed hit → **Real-image shot** unchanged. Under ADR-0009 a licensed **miss** no longer degrades straight to text-to-video — it falls to a **Generated still** which is then animated image-to-video. Wired in `gen_run._generate_clip` ahead of `generate_shots`.
+
+## 🆕 `scripter/shot_router.py` — Image-first routing ladder (ADR-0009)
+**Job:** Decide, per **Shot**, how it gets made, and refuse to bill past a ceiling.
+**Ladder:** names a real entity → **Licensed source** lookup → on miss (or when no real entity is named) → **Generated still** → animate via `first_frame_path` → fallbacks `text_to_video`, then `ken_burns`.
+**INV-7 (the point of the module):** a **Generated still** may never pre-empt a **Licensed source** that would have resolved. The licensed resolver runs unconditionally first, making the still call structurally unreachable on a hit; asserted by call-**order** tests, not just outcome.
+**Spend:** `check_combined_clip_ceiling` reads `quota_script_total` — which spans both the video and `openrouter_still` buckets — before **every** billable still and video call, so INV-2's 150¢ per-Clip cap covers the combined total.
+**Wiring status:** live for `real_image` shots via `gen_run._render_real_image_shot`. **`ai_video` shots do not yet traverse this ladder** — `route_shot` handles that case and is tested in isolation, but `_generate_clip` still batches them straight to text-to-video. Follow-up work.
 
 ## 🆕 `ai_gen/` — AI Video Generator Client (NEW Pivot.6)
 **Job:** Submit shot prompts to an AI video generator, poll for completion, download mp4s.
-**Design:** `base.Provider` ABC (`submit`, `poll`, `download`, `last_cost_cents`). **Production impl: `openrouter_kling.OpenRouterKlingClient`** (Kling 3.0 std `kwaivgi/kling-v3.0-std` via OpenRouter REST API, Bearer auth via `OPENROUTER_API_KEY`). `kling.KlingClient` (direct Kling JWT auth) retained as fallback. `pika.PikaClient` / `minimax.MiniMaxClient` / `seedance.SeedanceClient` are ready drop-in slots.
+**Design:** `base.Provider` ABC (`submit(..., first_frame_path=None)`, `poll`, `download`, `last_cost_cents`), plus `UnsupportedFirstFrameError` for providers that cannot do image-to-video — they must raise, never silently bill for an unconditioned text-to-video render. **Production impl: `openrouter_seedance.OpenRouterSeedanceClient`** (`bytedance/seedance-2.0-fast`, $0.0538/s, first-frame conditioning). **`openrouter_kling.OpenRouterKlingClient` is retained and selectable by config alone** (INV-10). The concrete class is chosen by `ai_gen/factory.build_video_provider(ai_cfg, api_key)` — `gen_run` never names a provider class directly. `factory.estimate_shot_cost_cents` derives the pre-billing projection from the **configured** per-second rate, so switching providers cannot leave the weekly cap projecting at the old model's price.
+**Auth:** `OpenRouterAuthError` on 401/403 — one attempt, no retry, aborts the run with an `auth_failed` alert, and never carries key material. 5xx/timeout retry ×3.
 **Inputs:** `scripts` row + `generation_jobs` table (persisted per shot for idempotency).
 **Outputs:** `data/ai_gen/{script_id}/shot_{i}.mp4`; `generation_jobs.status='succeeded'`; cost recorded in `quota_usage(provider='openrouter')`.
 **Concurrency:** `threading.Semaphore` with `max_concurrent_jobs=2` (config-driven).
@@ -77,7 +85,7 @@ Retired because: no source video to slice. Code + ~55 tests deleted.
 **Inputs:** list of shot mp4s (heterogeneous resolution/fps in Pivot.7 hybrid) + narration mp3 + subtitle ASS file + optional music track.
 **Outputs:** `output/pending/__unscheduled__{clip_id}__{title_slug}.mp4`; `clips.status='rendered'`.
 **Pipeline (single ffmpeg invocation):**
-1. **Shot normalization** (ADR-0002, `src/assembler/normalize.py`) — each input is scaled/padded to `cfg.output_resolution`, conformed to `cfg.output_fps`, yuv420p, SAR 1:1. Required because Kling std is 720×1280@24 while Ken Burns **Real-image shots** are 1080×1920@30.
+1. **Shot normalization** (ADR-0002, `src/assembler/normalize.py`) — each input is scaled/padded to `cfg.output_resolution`, conformed to `cfg.output_fps`, yuv420p, SAR 1:1. Required because the configured video Provider's output (resolution and fps are provider-specific and not assumed) must combine with Ken Burns fallback **Real-image shots** at 1080×1920@30.
 2. **Stitch** 4–6 shots — `xfade` when `assembler.crossfade_enabled`, else concat filter on normalized inputs (not the concat demuxer).
 3. Mux narration mp3 as sole audio track (replace source audio).
 4. Mix music bed at −22 dB with auto-duck under narration (reuses `editor/music.py` helpers).
@@ -167,7 +175,9 @@ RSS feeds → [topic_ingest] (feedparser; 48h window; URL + title-similarity ded
                         ↓
                [policy_gate] (banlist/profanity/NSFW/hook_sanity on narration+title)
                         ↓
-                  [ai_gen] (OpenRouter Kling 3.0 × 4 shots × ~4s, threading.Semaphore, generation_jobs table) → data/ai_gen/{script_id}/shot_{i}.mp4
+                  [ai_gen] (config-selected Provider — Seedance 2.0 Fast — × 4 shots × ~4s, threading.Semaphore, generation_jobs table) → data/ai_gen/{script_id}/shot_{i}.mp4
+                           real_image: licensed still → (miss) Generated still → first_frame → i2v | ken_burns fallback
+                           ai_video:   text-to-video (ladder not yet wired for this path)
                         ↓
                 [narration] (Edge TTS +10%/0Hz → mp3; Whisper forced-align → word timings) → data/narration/{script_id}.mp3
                         ↓

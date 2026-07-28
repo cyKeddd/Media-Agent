@@ -59,11 +59,16 @@ from src.scripter.ollama_fns import (
 from src import quality_screen, slot_planner, retention
 
 # Per-clip stage imports at module level so tests can patch src.gen_run.*
+# OpenRouterKlingClient / OpenRouterSeedanceClient stay imported here (some
+# tests patch them directly) even though the config-driven seam is now
+# build_video_provider() below — Issue 67 / INV-10: gen_run.py must never
+# hardcode which concrete Provider class gets constructed.
 from src.ai_gen.openrouter_kling import OpenRouterKlingClient
 from src.ai_gen.openrouter_seedance import OpenRouterSeedanceClient
+from src.ai_gen.factory import build_video_provider, estimate_shot_cost_cents
 from src.quota_ledger.ledger import SpendCapReached
 from src.ai_gen.base import GenerationStatus, OpenRouterAuthError, UnsupportedFirstFrameError
-from src.ai_gen.runner import DEFAULT_SHOT_COST_ESTIMATE_CENTS, generate_shots
+from src.ai_gen.runner import generate_shots
 from src.assembler.build import build_assembler_argv, write_concat_list
 from src.assembler.ken_burns import build_ken_burns_argv
 from src.editor.ffmpeg_runner import run_ffmpeg
@@ -381,10 +386,14 @@ def _generate_clip(
             ),
         )
 
-    if billable_ai * 67 > ai_cfg.per_clip_cost_cents_max and billable_ai > 0:
+    # Issue 67 — projection derived from the CONFIGURED provider's rate, not
+    # a Kling-shaped module constant (a Seedance-rate config would otherwise
+    # be over-projected ~3x here and refuse spend well inside budget).
+    shot_cost_estimate = estimate_shot_cost_cents(ai_cfg)
+    if billable_ai * shot_cost_estimate > ai_cfg.per_clip_cost_cents_max and billable_ai > 0:
         raise RuntimeError(
             f"clip {clip_id} projected OpenRouter cost "
-            f"{billable_ai * 67}c exceeds per_clip_cost_cents_max="
+            f"{billable_ai * shot_cost_estimate}c exceeds per_clip_cost_cents_max="
             f"{ai_cfg.per_clip_cost_cents_max} ({billable_ai} ai_video shots)"
         )
 
@@ -418,7 +427,7 @@ def _generate_clip(
             # BEFORE issuing the billable call. A call that would cross it is
             # refused, not attempted: zero provider calls, no partial charge.
             weekly_ceiling = getattr(ai_cfg, "weekly_spend_cents_ceiling", 800)
-            projected_cents = len(ai_shots) * DEFAULT_SHOT_COST_ESTIMATE_CENTS
+            projected_cents = len(ai_shots) * shot_cost_estimate
             if repo.quota_would_exceed_week(
                 projected_cents, weekly_ceiling, provider="openrouter",
             ):
@@ -430,13 +439,17 @@ def _generate_clip(
                 )
         if not openrouter_api_key:
             raise RuntimeError("OPENROUTER_API_KEY required for ai_video shots")
-        client = OpenRouterKlingClient(api_key=openrouter_api_key)
+        # Issue 67 / INV-10 — the concrete Provider class is a pure function
+        # of ai_gen.model. Flip config, get a different provider; no other
+        # code path changes.
+        client = build_video_provider(ai_cfg, openrouter_api_key)
         ai_paths = generate_shots(
             ai_shots, shots_dir, client,
             max_concurrent=ai_cfg.max_concurrent,
             repo=repo if track_quota else None,
             script_id=clip_id if track_quota else None,
             per_clip_cost_cents_max=ai_cfg.per_clip_cost_cents_max if track_quota else None,
+            shot_cost_estimate_cents=shot_cost_estimate,
         )
         if track_quota:
             if repo.quota_script_total(clip_id) > ai_cfg.per_clip_cost_cents_max:
@@ -645,11 +658,12 @@ def run_generation(
                         entity, query, cfg,
                     ),
                 )
-                if billable_ai * 67 > ai_cfg.per_clip_cost_cents_max and billable_ai > 0:
+                shot_cost_estimate = estimate_shot_cost_cents(ai_cfg)
+                if billable_ai * shot_cost_estimate > ai_cfg.per_clip_cost_cents_max and billable_ai > 0:
                     logger.error(
                         "gen_run: clip {} projected OpenRouter cost {}c exceeds cap {}",
                         script.get("script_id"),
-                        billable_ai * 67,
+                        billable_ai * shot_cost_estimate,
                         ai_cfg.per_clip_cost_cents_max,
                     )
                     continue

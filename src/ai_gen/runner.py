@@ -45,11 +45,19 @@ def generate_shots(
     repo=None,
     script_id: str | None = None,
     per_clip_cost_cents_max: int | None = None,
+    shot_cost_estimate_cents: int = DEFAULT_SHOT_COST_ESTIMATE_CENTS,
 ) -> list[Path]:
     """Submit all shots, poll until done, download mp4s, return ordered paths.
 
     When ``script_id`` and ``repo`` are set, succeeded ``generation_jobs`` are
     reused on retry (0¢ re-bill) and OpenRouter spend is attributed cumulatively.
+
+    ``shot_cost_estimate_cents`` (Issue 67) is the PRE-billing per-shot cost
+    projection used by the ceiling check below, before any provider call is
+    made. Callers with a config-driven provider should derive this from
+    ``src.ai_gen.factory.estimate_shot_cost_cents`` rather than relying on
+    the flat ``DEFAULT_SHOT_COST_ESTIMATE_CENTS`` default, which is tuned
+    for Kling and over-estimates a per-second-billed provider like Seedance.
     """
     dest_dir.mkdir(parents=True, exist_ok=True)
 
@@ -89,6 +97,7 @@ def generate_shots(
     if billable:
         _check_script_ceiling(
             repo, script_id, billable, per_clip_cost_cents_max,
+            shot_cost_estimate_cents,
         )
         _submit_all(billable, client, aspect_ratio, max_concurrent)
         _wait_and_download(billable, client, dest_dir, poll_interval_s, timeout_s)
@@ -143,11 +152,12 @@ def _check_script_ceiling(
     script_id: str | None,
     jobs: list[ShotJob],
     per_clip_cost_cents_max: int | None,
+    shot_cost_estimate_cents: int = DEFAULT_SHOT_COST_ESTIMATE_CENTS,
 ) -> None:
     if repo is None or not script_id or not per_clip_cost_cents_max:
         return
     projected = repo.quota_script_total(script_id) + (
-        len(jobs) * DEFAULT_SHOT_COST_ESTIMATE_CENTS
+        len(jobs) * shot_cost_estimate_cents
     )
     if projected > per_clip_cost_cents_max:
         raise RuntimeError(

@@ -1,16 +1,19 @@
 # Tools, Libraries & APIs
 
-> **Pivot.6 (current — Tech/AI news):** yt-dlp and mostReplayed are no longer used. Ollama's role has shifted from clip-ranker to script-writer. New additions: OpenRouter Kling 3.0 std (video generator), edge-tts (TTS narration), `feedparser` (RSS topic ingest), Whisper now used for forced-alignment of TTS output rather than source-video transcription.
+> **Pivot.6 (current — Tech/AI news):** yt-dlp and mostReplayed are no longer used. Ollama's role has shifted from clip-ranker to script-writer. New additions: edge-tts (TTS narration), `feedparser` (RSS topic ingest), Whisper now used for forced-alignment of TTS output rather than source-video transcription.
+>
+> **ADR-0009 (2026-07-27) — image-first generation:** the video generator is now **OpenRouter Seedance 2.0 Fast** image-to-video, selected from config via `src/ai_gen/factory`, with **Nano Banana 2** producing **Generated stills**. Kling 3.0 std is retained and revertible by config alone (INV-10), but is no longer the production path.
 
 ## Language & Runtime
 - **Python 3.11+** — best ecosystem fit for all project dependencies. Single-language project.
 - **ffmpeg** (system binary, Gyan 8.1-full_build) — concat, mux, loudnorm, ASS burn, NVENC encode. Must be on PATH.
 
 ## AI Video Generation (NEW — Pivot.6)
-- **OpenRouter Kling 3.0 std** (`kwaivgi/kling-v3.0-std`, accessed via OpenRouter REST API, `OPENROUTER_API_KEY`) — text-to-video generator. Std tier emits **720×1280 @ 24fps**; the assembler applies **Shot normalization** to 1080×1920 (ADR-0002). ~4 s shot duration, 4 shots stitched per clip. Bearer auth (no JWT signing). Implementation: `src/ai_gen/openrouter_kling.py` (`OpenRouterKlingClient(Provider)`, 23 unit tests).
-- **Provider seam:** `src/ai_gen/base.Provider` ABC. Pika 2.0, MiniMax-Hailuo, and Seedance are drop-in replacements with ~½-day effort. Direct Kling API adapter (`src/ai_gen/kling.py`) retained as a fallback, not the production path (was blocked on error 1003 "Authorization not active").
-- **Why OpenRouter over direct Kling:** API activation is immediate, billing aggregates across providers in one place, single env var simplifies key rotation. Switching providers requires no downstream pipeline changes.
-- **Cost model:** per-second pricing; **$5/week budget → 2–3 clips/week at ~$2/clip**. Scales to ~$80/mo at 4 clips/day. Enforced by `per_clip_cost_cents_max` + `daily_spend_cents_ceiling` in `quota_ledger`.
+- **OpenRouter Seedance 2.0 Fast** (`bytedance/seedance-2.0-fast`, via OpenRouter REST API, `OPENROUTER_API_KEY`) — **image-to-video** generator, the production path since ADR-0009. **$0.0538/s → 22¢ per 4 s shot** (rounded up, so the ledger never under-reports). Supports first-frame conditioning, which is the whole reason for the switch: text-to-video re-rolls composition on every retry and drifts in style across the four **Shots** of a **Clip**, whereas conditioning on a still fixes the subject and lets a **Licensed source** image be the literal first frame. Implementation: `src/ai_gen/openrouter_seedance.py`.
+- **OpenRouter Nano Banana 2** (`google/gemini-3.1-flash-image`, ~$0.004/still) — the **Still provider** that produces a **Generated still** when a **Licensed source** misses or a **Shot** names no real entity. Implementation: `src/image_gen/nano_banana.py`.
+- **Provider seam:** `src/ai_gen/base.Provider` ABC (now carrying `first_frame_path`) and `src/image_gen/base.StillProvider`. The concrete video class is chosen by `src/ai_gen/factory.build_video_provider` from config — `gen_run` never names one, so reverting to Kling is a one-line config edit (INV-10). **Kling is retained**, not deleted (`src/ai_gen/openrouter_kling.py`); the direct-Kling JWT adapter (`src/ai_gen/kling.py`) also remains as a legacy fallback (was blocked on error 1003 "Authorization not active").
+- **Why OpenRouter:** API activation is immediate, billing aggregates across providers in one place, a single env var simplifies key rotation, and it serves both the video and still models. Switching providers requires no downstream pipeline changes.
+- **Cost model:** per-second pricing; **$8/week budget → 5 clips/week at ~88¢/clip** (4 × 22¢ Seedance shots ≈ 86¢ + ~2¢ stills), ≈ $4.40/week, ~45% headroom for retries. Enforced *before* each billable call by `weekly_spend_cents_ceiling` (800¢ rolling 7×24 h), `per_clip_cost_cents_max` (150¢, combined video + stills), `daily_spend_cents_ceiling` (300¢ burst guard) and the INV-3 still ceilings (5¢/still, 20¢/Clip). The projection itself comes from `factory.estimate_shot_cost_cents`, derived from the configured rate rather than a constant — a hardcoded 67¢ (Kling's price) would have made the 800¢ ceiling behave like ~260¢ after the switch and quietly strangled output.
 
 ## TTS Narration (NEW — Pivot.6)
 - **`edge-tts`** (PyPI, free) — Microsoft Azure neural TTS via the unofficial public endpoint. No API key required. Voice `en-US-GuyNeural`. Rate `+10%`, pitch `0Hz` — natural conversational pacing (not slow/calm, not crammed; engaged-friend cadence).
@@ -24,9 +27,10 @@
 
 ## Hybrid real-image shots (Pivot.7)
 - **`image_fetch`** — resolves **Real-image shot** stills from **Licensed sources** (logo APIs, Wikimedia, Openverse). Production config: `web_fallback_enabled: false` (ADR-0003). Open web search remains available for manual spike/dev configs only.
-- **`scripter/shot_plan.resolve_shot_plan`** — licensed miss degrades **Real-image shot** → **AI-video shot** before Kling billing; billable count known up front.
+- **`scripter/shot_plan.resolve_shot_plan`** — resolves licensed stills up front so the billable count is known before any spend.
+- **`scripter/shot_router.route_shot`** (ADR-0009) — the image-first ladder: licensed still → **Generated still** on a miss → animate as first frame → `text_to_video` → `ken_burns`. **INV-7** is enforced structurally (licensed lookup runs first, making the still call unreachable on a hit) and proven by call-**order** assertions. Live for `real_image` shots; `ai_video` shots still go straight to text-to-video pending follow-up wiring.
 - **Ken Burns** (`src/assembler/ken_burns.py`) — motion over sourced still → 1080×1920@30 mp4.
-- **Shot normalization** (ADR-0002) + **Stitch** (ADR-0002 assembler) — heterogeneous Kling + Ken Burns shots combined at 1080×1920.
+- **Shot normalization** (ADR-0002) + **Stitch** (ADR-0002 assembler) — heterogeneous provider-generated + Ken Burns shots combined at 1080×1920. Whatever resolution/fps the configured video Provider returns is conformed here; nothing downstream assumes Kling's 720×1280 @ 24fps.
 
 ## Video Acquisition (LEGACY — not used in Pivot.6)
 - **`yt-dlp`** (Python API) — was used for YouTube source-video downloads and caption sidecar retrieval (Phases 1–7, Pivots.0–5). Retained in `requirements.txt` but no code path calls it in Pivot.6. Will be removed when the `discovery/` and `downloader/` modules are fully deleted.
@@ -99,5 +103,6 @@
 
 ## Cost Model (Pivot.6)
 - Edge TTS / Whisper / Ollama / ffmpeg / YouTube API / RSS fetching: all **free**
-- **OpenRouter Kling 3.0 std:** ~$2/clip at 4 shots × ~4 s. **$5/week budget → 2–3 clips/week** (current cadence). Scales to ~$80/month at 4 clips/day if budget grows.
-- **Total: ~$5/week to ~$80/month** depending on cadence. Only paid dependency.
+- **OpenRouter Seedance 2.0 Fast:** ~86¢/clip at 4 shots × ~4 s ($0.0538/s → 22¢/shot). **$8/week budget → 5 clips/week** (current cadence).
+- **OpenRouter Nano Banana 2 stills:** ~$0.004/still, ~2¢/clip.
+- **Total: ~88¢/clip → ≈$4.40/week** at 5 clips/week, against an 800¢ weekly ceiling. Only paid dependency. (For reference, the retired Kling text-to-video path was ~$2/clip — the image-first switch cut per-clip cost by ~55% *and* raised quality.)

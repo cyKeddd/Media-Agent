@@ -86,7 +86,7 @@ def test_policy_violation_skips_script_without_kling(tmp_path):
          patch("src.gen_run.align", return_value=[]), \
          patch("src.gen_run.write_line_ass_file"), \
          patch("src.gen_run.run_ffmpeg", side_effect=_ffmpeg), \
-         patch("src.gen_run.OpenRouterKlingClient") as p_client, \
+         patch("src.gen_run.build_video_provider") as p_client, \
          patch("src.quality_screen.run_all", return_value=[]), \
          patch("src.slot_planner.run_all", return_value=[]), \
          patch("src.retention.run_all", return_value=MagicMock()):

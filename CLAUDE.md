@@ -4,12 +4,12 @@
 A fire-and-forget Python agent that automates an **AI-generated Tech/AI news YouTube Shorts channel** (MKBHD-style topic angle, Zack D. Films delivery format). Weekly run drives:
 1. **Topic ingest** — pull last-48h items from mixed consumer + research tech/AI RSS feeds; dedup by URL + title-similarity; queue fresh topics in DB.
 2. **Script generation** — local Ollama (`qwen2.5:3b-instruct`) emits a `{title, narration, shots[], style_notes}` JSON script from a queued topic. ~40-word narration, hook in first 5 words, 4 shots, ends on a teaser.
-3. **Video generation** — OpenRouter Kling 3.0 std (`kwaivgi/kling-v3.0-std`) text-to-video (provider-abstracted; Seedance / Pika / MiniMax-Hailuo are drop-in swaps) renders 4 stitched ~4 s shots at **720×1280**; the assembler **Shot-normalizes** to 1080×1920.
+3. **Video generation (image-first, ADR-0009)** — OpenRouter **Seedance 2.0 Fast** (`bytedance/seedance-2.0-fast`, $0.0538/s) renders 4 stitched ~4 s shots; the assembler **Shot-normalizes** to 1080×1920. The provider is built from config by `src/ai_gen/factory.build_video_provider` — Kling is retained and reverting is a config-only edit (INV-10). **Real-image shots** are image-first: a **Licensed source** still (or a **Generated still** from Nano Banana 2 on a miss) is passed as the first frame to an image-to-video call, with Ken Burns retained only as the fallback when i2v is unavailable. **`ai_video` shots are still submitted as text-to-video** — routing them through a still first is built and tested in `src/scripter/shot_router.py` but not yet wired into `gen_run`.
 4. **Narration** — Edge TTS (`en-US-GuyNeural`, rate `+10%`, pitch `0Hz`, free) produces the voiceover with natural conversational pacing; Whisper forced-align provides word timings.
 5. **Assembly** — ffmpeg concat → mux narration → music-bed duck/mix → ASS line-at-a-time subtitle burn → NVENC encode → 2-pass LUFS normalize.
 6. **Upload** — same backbone as before: slot-planner spreads `publish_at_utc` over 7 days; daily Task Scheduler run uploads via YouTube Data API v3 with `publishAt` + AI-disclosure flag.
 
-**Cadence (current budget):** ~1 clip/day, $5/week budget = 2–3 clips/week practical. Scales to 4 clips/day if budget increases.
+**Cadence (current budget):** **5 Clips/week**, $8/week budget. ~88¢ per **Clip** (4 × ~22¢ Seedance shots ≈ 86¢, plus ~2¢ of **Generated stills**) ≈ **$4.40/week** against the 800¢ weekly ceiling, leaving ~45% headroom for retries. Enforced by `weekly_spend_cents_ceiling: 800` (rolling 7×24 h), `per_clip_cost_cents_max: 150`, and `daily_spend_cents_ceiling: 300` as a burst guard.
 
 **Content pivot history:** v1 was "podcast/highlight + Subway gameplay split-screen" (Phases 0–4). Pivot.0–5 (2026-05-04 → 2026-05-12) swapped to "movie clips" (single full-screen + blurred-bg + karaoke subs). **Pivot.6 (2026-05-16, current)** drops sourced video entirely in favour of AI-generated content. Niche corrected on 2026-05-17 from "weird/unsettling facts" to "Tech/AI news" after strategy interview. The active plan is in `plan.md` — full slice breakdown inlined there.
 
@@ -25,7 +25,7 @@ A fire-and-forget Python agent that automates an **AI-generated Tech/AI news You
 - **Development & runtime:** the user's Windows laptop (single machine). Code is developed and run on the same PC; no separate dev/runtime environments.
 
 ## Stack
-Python 3.11+ · ffmpeg+NVENC · **OpenRouter Kling 3.0 std** (paid; provider-abstracted via `OPENROUTER_API_KEY`) · **Edge TTS** (free) · faster-whisper (CUDA, forced-alignment role only post-Pivot.6) · YouTube Data API v3 · Ollama (`qwen2.5:3b-instruct`, local — script writer) · RSS via `feedparser` (Pivot.6 — topic source) · Windows Task Scheduler · SQLite. See `skills.md` for the full rationale. **Cost: OpenRouter Kling only (~$5/week budget → 2–3 clips/week); everything else is free.**
+Python 3.11+ · ffmpeg+NVENC · **OpenRouter Seedance 2.0 Fast** (paid; video, config-selected via `src/ai_gen/factory`) · **OpenRouter Nano Banana 2** (`google/gemini-3.1-flash-image`, paid, ~$0.004/still — **Generated stills**) · **Edge TTS** (free) · faster-whisper (CUDA, forced-alignment role only post-Pivot.6) · YouTube Data API v3 · Ollama (`qwen2.5:3b-instruct`, local — script writer) · RSS via `feedparser` (Pivot.6 — topic source) · Windows Task Scheduler · SQLite. See `skills.md` for the full rationale. **Cost: OpenRouter only — Seedance video + Nano Banana 2 stills (~$8/week budget → 5 clips/week at ~88¢ each); everything else is free.**
 
 ## Architecture in one diagram (Pivot.6)
 ```
@@ -34,7 +34,9 @@ Python 3.11+ · ffmpeg+NVENC · **OpenRouter Kling 3.0 std** (paid; provider-abs
         RSS feeds → topic_ingest (last 48h, dedup by URL + title-similarity, persisted to topics)
                 → scripter (Ollama → {title, narration ≈40 words, shots[4], style_notes} JSON, persisted to scripts)
                 → policy_gate (banlist / profanity / NSFW / hook-sanity / topic_filter on narration + title)
-                → ai_gen (OpenRouter Kling 3.0 std × 4 shots, ThreadPool max_workers=2, persisted to generation_jobs)
+                → ai_gen (config-selected Provider — Seedance 2.0 Fast — × 4 shots, ThreadPool max_workers=2, persisted to generation_jobs)
+                    real_image shots: Licensed source still → (miss) Generated still → first_frame → i2v; Ken Burns = fallback
+                    ai_video shots:   text-to-video (not yet routed through a still — see ADR-0009 follow-up)
                 → narration (Edge TTS at +10% rate / 0Hz pitch → mp3; Whisper forced-align → per-word timings)
                 → assembler (ffmpeg concat → mux narration → music duck/mix → ASS line-centered burn → NVENC 1080×1920 → 2-pass −14 LUFS)
                   → output/pending/__unscheduled__{clip_id}__{slug}.mp4
@@ -57,7 +59,7 @@ Python 3.11+ · ffmpeg+NVENC · **OpenRouter Kling 3.0 std** (paid; provider-abs
 ## Operational invariants preserved across pivots
 - New modules introduced over time: `lang_detect/`, `policy_gate/`, `quality_screen/`, `quota_ledger/`, `retention/`, `observability/`, `slot_planner/` (Phase 4.5–7), **then Pivot.6 added** `topic_ingest/`, `scripter/`, `ai_gen/`, `narration/`, `assembler/` (replacing `editor/`) and **retired** `discovery/`, `downloader/`, `lang_detect/`, `selector/`.
 - TZ semantics: canonical `timezone` from config, `zoneinfo` for DST, `publish_at_utc` stored UTC, missed-slot recovery batches stale → next future slot, future-too-near pad of 20 min.
-- Quota ledger meters every billed call across providers (`youtube` for `videos.insert`, `openrouter` for per-shot Kling cost cents). Weekly run aborts before exceeding the configured ceilings.
+- Quota ledger meters every billed call across providers (`youtube` for `videos.insert`, `openrouter` for per-shot video cost cents and per-still cost under `endpoint='openrouter_still'`). Weekly run **refuses before issuing** a call that would cross a ceiling — a budget stop appends `spend_cap_reached` and finishes `success=1` with a `capped` summary, never a silent skip.
 - Retention TTLs (Pivot.6): `ai_gen_shots/` 7 d post-render, `narration/` 14 d, `scripts` rows 90 d, `topics` rows 30 d, `dup_hashes` / `quota_usage` 90 d, queue 7 d post-upload, monthly VACUUM. `raw_video` / `transcripts` TTLs retired (no longer produced).
 - Observability: filesystem-based — `loguru` → `logs/agent.log`, append-only `logs/alerts.md` for run failure / quota near-cap / upload reject / missed-slot recovery / weekly finished / OpenRouter spend near cap.
 - `--dry-run` mode on uploader and `gen_run.py`; `bootstrap --check` verifies `OPENROUTER_API_KEY` + edge-tts + Ollama + ffmpeg+NVENC + Whisper.
@@ -76,10 +78,10 @@ Each stage is independent and idempotent, communicating via the SQLite state sto
 ## Locked decisions (Pivot.6)
 - **Niche:** AI-centric tech news — model/research releases, AI in products (Apple Intelligence, Copilot), and major flagship hardware/OS launches (new iPhone, major iOS, flagship GPU). Topics from curated RSS feeds + on-niche ingest gate (ADR-0004). **Not:** culture/entertainment, lawsuits/drama, minor/incremental tech, weird/unsettling facts, or generic explainers.
 - **Content kind:** `ai_generated`. No source-video ingestion. `clips.content_kind='ai_generated'` gates uploader templating.
-- **Vertical layout:** native 9:16. Kling std emits **720×1280 @ 24fps**; Ken Burns **Real-image shots** render at **1080×1920 @ 30fps**. The assembler applies **Shot normalization** (ADR-0002) to conform every **Shot** to `output_resolution` + `output_fps` before **Stitching** — no blurred-bg filtergraph needed.
+- **Vertical layout:** native 9:16. Whatever resolution/fps the configured video Provider returns (Seedance is not assumed to match Kling's 720×1280 @ 24fps); Ken Burns fallback **Real-image shots** render at **1080×1920 @ 30fps**. The assembler applies **Shot normalization** (ADR-0002) to conform every **Shot** to `output_resolution` + `output_fps` before **Stitching** — no blurred-bg filtergraph needed.
 - **Subtitles:** centered line-at-a-time ASS burn. Position `\pos(540, 1500)`. Word timings from Whisper forced-align on TTS mp3. ≤28 chars/line, 100 ms fade-in.
 - **Narration:** Edge TTS `en-US-GuyNeural`, rate `+10%`, pitch `0Hz`. Natural conversational pacing — not slow/calm, not crammed. Whisper `large-v3` int8_float16 on CUDA for alignment.
-- **Generator:** OpenRouter Kling 3.0 std (`kwaivgi/kling-v3.0-std`) via `src/ai_gen/openrouter_kling.py`. Std tier emits **720×1280 @ 24fps** (~4 s/shot, 4 shots/clip → ~16 s clip). Style suffix: `"clean editorial product photography, soft studio lighting, neutral backgrounds, minimalist composition, sharp focus, vertical 9:16, premium tech magazine look"`.
+- **Generator:** OpenRouter **Seedance 2.0 Fast** (`bytedance/seedance-2.0-fast`, $0.0538/s → **22¢ per 4 s shot**, rounded up) via `src/ai_gen/openrouter_seedance.py`, constructed from config by `src/ai_gen/factory.build_video_provider`. Supports first-frame conditioning, which is what makes the image-first ladder possible. **Kling remains implemented** (`src/ai_gen/openrouter_kling.py`) and selectable by changing `ai_gen.model` alone — INV-10. **Still provider:** Nano Banana 2 (`google/gemini-3.1-flash-image`) via `src/image_gen/nano_banana.py`. ~4 s/shot, 4 shots/clip → ~16 s clip. Style suffix: `"clean editorial product photography, soft studio lighting, neutral backgrounds, minimalist composition, sharp focus, vertical 9:16, premium tech magazine look"`.
 - **Script writer:** Ollama `qwen2.5:3b-instruct` JSON-mode. Consumes a topic (title + summary) from `topics` table → produces `{title, narration ≈40 words, shots[4], style_notes}`. Rubric: hook in first 5 words, 1–2 punchy stats, ends on a teaser.
 - **Topic source:** Live RSS pull from mixed consumer + research tech/AI feeds, last 48 h window. Dedup by URL hash + normalized-title similarity (Levenshtein / word-set overlap). Feed URLs configured by user at Slice 7.
 - **Default cadence (current budget):** ~1 clip/day, $5/week budget = 2–3 clips/week. Configurable via `clips_per_day` and `days_per_run`.
@@ -87,7 +89,7 @@ Each stage is independent and idempotent, communicating via the SQLite state sto
   - Assembled clips → `output/pending/{YYYY-MM-DD}__{slot_HHMM}__{title_slug}.mp4`
   - User reviews in Explorer, drags approved files → `output/approved/`
   - Daily uploader pulls from `output/approved/` while review is on; from `output/pending/` directly after week 2.
-- **Hybrid real-image sourcing (Pivot.7, ADR-0003):** autonomous path uses **Licensed sources** only (`logo`, `wikimedia`, `openverse`; `web_fallback_enabled: false`). Licensed miss → **Real-image shot** degrades to **AI-video shot** before Kling billing. Web fallback remains for manual spike/dev only.
+- **Hybrid real-image sourcing (Pivot.7, ADR-0003; superseded in part by ADR-0009):** autonomous path uses **Licensed sources** only (`logo`, `wikimedia`, `openverse`; `web_fallback_enabled: false`). A licensed miss no longer degrades straight to text-to-video — under ADR-0009 it falls to a **Generated still**, which is then animated image-to-video. **INV-7:** a **Generated still** may never pre-empt a **Licensed source** that would have resolved; the licensed lookup must be attempted and observed to miss first, enforced in `src/scripter/shot_router.py` and asserted by call-order tests. Web fallback remains for manual spike/dev only.
 - **Canonical timezone:** `Asia/Singapore`.
 - **No Discord, no webhooks.** Failures and recoveries append to `logs/alerts.md`.
 - **AI disclosure:** `compliance.ai_disclosure=true` in config. Upload description footer: "Made with AI. For entertainment / educational use." YouTube `status.containsSyntheticMedia=true` set on `videos.insert` for all `content_kind='ai_generated'` clips (field confirmed live in v3 since 2024-10-30).
@@ -98,7 +100,7 @@ Each stage is independent and idempotent, communicating via the SQLite state sto
 
 ## Content generation (Pivot.6)
 - **Topic flow:** RSS feeds → `topic_ingest` (dedup) → `topics` table → `scripter` consumes one topic round-robin → script generated → script_id linked to clip stub.
-- **Kling shots:** submitted concurrently via `ThreadPoolExecutor(max_workers=2)`. Cost tracked per shot in `quota_usage(provider='openrouter', units=cost_cents)`. Daily spend ceiling enforced (`ai_gen.daily_spend_cents_ceiling`).
+- **Video shots:** submitted concurrently via `ThreadPoolExecutor(max_workers=2)`. Cost tracked per shot in `quota_usage(provider='openrouter', units=cost_cents)`, projected from the **configured** provider's per-second rate (`estimate_shot_cost_cents`), never a hardcoded constant. Weekly (800¢ rolling 7×24 h), per-clip (150¢, combined video + stills), daily burst (300¢) and per-still (5¢ / 20¢ per Clip) ceilings all enforced **before** the call.
 - **Provider abstraction:** `src/ai_gen/base.py` defines a `Provider` ABC. Swap to Pika 2.0, MiniMax, or Seedance by adding a concrete impl — no downstream pipeline changes.
 
 ## Working agreement
@@ -109,7 +111,7 @@ Each stage is independent and idempotent, communicating via the SQLite state sto
 
 ## Risk acknowledgement (Pivot.6)
 AI-generated content eliminates the movie-clip copyright-strike risk. Residual risks:
-- **OpenRouter Kling cost overrun.** Mitigated by `per_clip_cost_cents_max` and `daily_spend_cents_ceiling` enforced in `quota_ledger`. Agent aborts if projection exceeds ceiling.
+- **OpenRouter cost overrun.** Mitigated by `weekly_spend_cents_ceiling` (800¢ rolling), `per_clip_cost_cents_max` (150¢, combined video + stills), `daily_spend_cents_ceiling` (300¢) and the INV-3 still ceilings, all checked before the billable call. Note the ledger itself was silently empty until Issue 62 — `generate_shots` only recorded spend when `script_id` was truthy, so any cap read 0 and never fired. Treat "the cap didn't trip" as a claim to verify, not evidence.
 - **Generator aesthetic drift.** Slice 2 spike validates 10 sample shots before committing. Provider abstraction allows a half-day swap to Seedance / Pika / MiniMax if output quality is insufficient.
 - **Edge TTS throttling.** Microsoft rate-limits the free endpoint unannounced. Tenacity retry + `pyttsx3` offline fallback as degraded mode.
 - **YouTube AI-disclosure API gaps.** Resolved in Slice 9: `status.containsSyntheticMedia` (boolean) is confirmed live in v3 since 2024-10-30. Set on all `content_kind='ai_generated'` uploads. Spot-check Studio UI for first ~5 uploads to verify.

@@ -4,7 +4,9 @@
 
 # CONTEXT Index — Media-Agent (Pivot.6)
 
-Tech/AI news YouTube Shorts pipeline. Issues 39–41 + **43** complete; Issue 42 partial (ship/stability gates pending). **Dashboard v2 shipped** (Issues 47–50; health-first + approve/reject). v1 (44–46) superseded in UI. Backfill done; schedulers fixed; cumulative 250¢/clip cap + shot reuse on retry shipped.
+Tech/AI news YouTube Shorts pipeline. Issues 39–41 + **43** complete; Issue 42 partial (ship/stability gates pending). **Dashboard v2 shipped** (Issues 47–50; health-first + approve/reject). v1 (44–46) superseded in UI. Backfill done; schedulers fixed.
+
+**Resurrection + image-first (Issues 59–69, 2026-07-27/28) — shipped.** The channel had been silently dead for eight weeks: every weekly run reported `success=true` with `generate_clips=0`. Two stacked root causes, both now fixed — the entry points never called `load_dotenv` (Issue 59), and the spend ledger was never written to, so any cap read 0 and could never fire (Issue 62). Generation switched to **image-first** via **ADR-0009**: Seedance 2.0 Fast i2v + Nano Banana 2 stills, provider chosen from config (INV-10), ~88¢/clip against an 800¢ rolling weekly ceiling. Liveness + `auth_failed` alerts and an abandoned-run sweep close the "silence looks like health" hole. **Issue 70 (live run) remains blocked** on a funded `OPENROUTER_API_KEY` — the value in `.env` is still the 12-char placeholder.
 
 ## Domain terminology (sharpened)
 
@@ -18,7 +20,7 @@ Tech/AI news YouTube Shorts pipeline. Issues 39–41 + **43** complete; Issue 42
 | Phase | File | Status | Last Updated | Summary |
 |---|---|---|---|---|
 | planning | [phase-planning.md](phase-planning.md) | in-progress | 2026-06-06 | Niche locked (Tech/AI), 10-slice plan, two-gate sign-off; finish-line roadmap (Issues 26–29); AI-niche refit (ADR-0004, Issues 30–34); first live hybrid gen_run (Issues 35–38); steady-state autonomy path (Issues 39–43); web review/calendar dashboard v1 (Issues 44–46); dashboard v2 health-first redesign + approve/reject (ADR-0005/0006; Issues 47–50); **Issues 51–57 shipped**; **Issue 58 partial** (first Directed script in DB) |
-| architecture | [phase-architecture.md](phase-architecture.md) | in-progress | 2026-05-27 | SQLite schema (4 Pivot.6 tables), Pydantic Config, 50+ DAL helpers, Provider ABC; **ADR-0002** assembler shot normalization; **ADR-0003** licensed-only image sourcing; **ADR-0004** AI-centric niche + ingest relevance gate |
+| architecture | [phase-architecture.md](phase-architecture.md) | in-progress | 2026-07-28 | SQLite schema (4 Pivot.6 tables), Pydantic Config, 50+ DAL helpers, Provider ABC (now with `first_frame_path`) + `StillProvider` ABC + `ai_gen/factory` config-driven provider selection; **ADR-0002** assembler shot normalization; **ADR-0003** licensed-only image sourcing; **ADR-0004** AI-centric niche + ingest relevance gate; **ADR-0009** image-first shot generation (Seedance i2v + Nano Banana stills, INV-7 licensed-before-generated ladder) |
 | development | [phase-development.md](phase-development.md) | in-progress | 2026-06-06 | Issues 39–41 + 43 shipped; **Issues 47–50 dashboard v2**; **Issues 51–57 post-v2 backlog**; Issue 42 enablement partial |
 | testing | [phase-testing.md](phase-testing.md) | in-progress | 2026-06-06 | Issue 39 backfill + dashboard tests (31 v2 + **30 for Issues 51–57**) |
 | deployment | [phase-deployment.md](phase-deployment.md) | in-progress | 2026-06-07 | Scheduler XMLs fixed; Hermes director first Directed script; **OpenRouter 401 root-caused (wrong key, not model) — Issue 58 unblocked**; `gen_run` E2E + persistent key-for-scheduler + Hermes cron pending |

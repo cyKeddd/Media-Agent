@@ -4,7 +4,10 @@
 clips_per_day: 1
 days_per_run: 7
 upload_slots: ["09:00", "13:00", "17:00", "21:00"]   # canonical timezone (below)
-upload_weekdays: ["tue", "thu"]                       # Slice 11: 2 clips/week steady-state
+# Issue 67 (ADR-0009, D2): image-first + Seedance drops cost/Clip from ~$2.02
+# (Kling text-to-video) to ~88c, so the $8/week budget buys 5 Clips/week
+# instead of 2. 1/day x 5 weekdays = 5 clips/week.
+upload_weekdays: ["mon", "tue", "wed", "thu", "fri"]  # Issue 67: 5 clips/week steady-state
 
 # --- Time ---
 timezone: "Asia/Singapore"
@@ -114,16 +117,26 @@ run_hang_minutes: 90                                  # abandoned-run sweep thre
 # --- Liveness detection (Issue 61 / INV-5) ---
 liveness_stale_days: 7                                # no Clip rendered within this many days -> liveness_stalled alert (at most once/day)
 
-# --- AI generation (Kling / OpenRouter) ---
+# --- AI generation (OpenRouter) ---
 # Top up OPENROUTER_API_KEY before running ai_gen slice.
+# Issue 67 (ADR-0009, D2): image-first + Seedance is now the DEFAULT video
+# generator. build_video_provider() (src/ai_gen/factory.py) reads `model`
+# below — the ONLY place the concrete Provider class is chosen — so
+# reverting to Kling is this one config edit, nothing else (INV-10).
 ai_gen:
-  model: "kwaivgi/kling-v3.0-std"
+  model: "bytedance/seedance-2.0-fast"   # ADR-0009: image-to-video, ~5.38c/s
+  # Kling 3.0 std — commented, ready-to-swap alternative (INV-10). Flip
+  # `model` back to this line to revert to Kling text-to-video; no code
+  # change needed anywhere else.
+  # model: "kwaivgi/kling-v3.0-std"
   per_clip_cost_cents_max: 150        # Issue 62: 5 clips/week at ~88c leaves ~45% headroom
   daily_spend_cents_ceiling: 300      # Issue 62: secondary burst guard — one day can't eat the week
   weekly_spend_cents_ceiling: 800     # Issue 62 (INV-1): rolling 7x24h OpenRouter total, $8/week budget
   still_cost_cents_max: 5             # Issue 62 (INV-3): one Generated still <= 5c; enforced in Issue 64
   still_clip_cost_cents_max: 20       # Issue 62 (INV-3): all stills for one Clip <= 20c; enforced in Issue 64
   still_model: "google/gemini-3.1-flash-image"    # Issue 64 (ADR-0009): Nano Banana 2, ~$0.004/still
+  still_generation_enabled: true      # Issue 67: declarative — see AiGenConfig docstring, not yet wired
+                                       # into gen_run.py's production ai_video path (see CLAUDE.md)
   seedance_model: "bytedance/seedance-2.0-fast"   # ADR-0009 image-to-video provider (Issue 65)
   seedance_rate_cents_per_second: 5.38            # $0.0538/s; 4s shot = 22c rounded up
 

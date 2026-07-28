@@ -257,13 +257,15 @@ def test_dead_field_absent(field):
 
 def test_config_yaml_loads_cleanly():
     cfg = load_config(Path("config.yaml"))
-    assert cfg.ai_gen.model == "kwaivgi/kling-v3.0-std"
+    # Issue 67 (ADR-0009, D2): image-first + Seedance is now the default
+    # video generator, and cadence expresses 5 Clips/week (was 2, tue/thu).
+    assert cfg.ai_gen.model == "bytedance/seedance-2.0-fast"
     assert cfg.compliance.ai_disclosure is True
     assert cfg.retention.ai_gen_shots == 7
     assert cfg.clips_per_day == 1
-    assert cfg.upload_weekdays == frozenset({1, 3})
+    assert cfg.upload_weekdays == frozenset({0, 1, 2, 3, 4})
     assert cfg.image_fetch.web_fallback_enabled is False
     assert cfg.image_fetch.sources == ["logo", "wikimedia", "openverse"]
-    assert cfg.ai_gen.per_clip_cost_cents_max == 250
-    assert cfg.ai_gen.daily_spend_cents_ceiling == 500
+    assert cfg.ai_gen.per_clip_cost_cents_max == 150
+    assert cfg.ai_gen.daily_spend_cents_ceiling == 300
     assert cfg.copyright_acknowledgement == "hybrid_real_image_v1"

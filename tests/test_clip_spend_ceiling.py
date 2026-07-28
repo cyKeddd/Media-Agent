@@ -197,7 +197,7 @@ def test_retry_after_post_billing_failure_totals_126_not_252(tmp_path):
             tmp.write_bytes(b"x" * 1024)
         return MagicMock(returncode=0, output_size_bytes=1024, stderr="")
 
-    with patch("src.gen_run.OpenRouterKlingClient", return_value=client), \
+    with patch("src.gen_run.build_video_provider", return_value=client), \
          patch("src.gen_run.synthesize", side_effect=_synth_fail), \
          patch("src.gen_run.align", return_value=[]), \
          patch("src.gen_run.write_line_ass_file"), \

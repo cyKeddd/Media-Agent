@@ -49,7 +49,12 @@ class TopicIngestConfig(BaseModel):
 
 
 class AiGenConfig(BaseModel):
-    model: str = "kwaivgi/kling-v3.0-std"
+    # Issue 67 (ADR-0009, D2) — image-first + Seedance is the default video
+    # generator. build_video_provider() (src/ai_gen/factory.py) is the only
+    # seam that reads this: flip it back to "kwaivgi/kling-v3.0-std" (kept
+    # below as a commented ready-to-swap alternative in config.yaml) and no
+    # other code changes (INV-10).
+    model: str = "bytedance/seedance-2.0-fast"
     per_clip_cost_cents_max: int
     daily_spend_cents_ceiling: int
     # Issue 62 — rolling 7x24h OpenRouter spend ceiling (INV-1). Default 800c
@@ -64,6 +69,16 @@ class AiGenConfig(BaseModel):
     # Issue 64 — Nano Banana 2 (google/gemini-3.1-flash-image) still model id,
     # read from config so NanoBananaProvider never hardcodes it (INV-10).
     still_model: str = "google/gemini-3.1-flash-image"
+    # Issue 67 — declares intent that Generated-still sourcing (Nano Banana
+    # 2, ADR-0009 ladder step 1) is switched on. NOTE: this flag is
+    # declarative only as of Issue 67 — `src/scripter/shot_router.route_shot`
+    # implements the full still -> animate ladder and is unit-tested
+    # (tests/test_shot_routing_ladder.py), but gen_run.py's production
+    # `_generate_clip` does not call it yet; a licensed-miss real_image Shot
+    # still degrades straight to an ai_video (text-to-video) Shot via
+    # `scripter.shot_plan.resolve_shot_plan`, not to a Generated still. See
+    # CLAUDE.md "Locked decisions" for the honest as-shipped path.
+    still_generation_enabled: bool = True
     max_concurrent: int = 2
     shots_per_clip_min: int = 1
     shots_per_clip_max: int = 3

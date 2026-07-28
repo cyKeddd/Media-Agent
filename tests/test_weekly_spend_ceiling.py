@@ -179,7 +179,7 @@ def test_gen_run_refuses_call_that_would_cross_weekly_ceiling(tmp_path):
          patch("src.slot_planner.run_all", return_value=[]), \
          patch("src.retention.run_all", return_value=MagicMock()), \
          patch("src.gen_run.generate_shots") as p_gen, \
-         patch("src.gen_run.OpenRouterKlingClient") as p_client, \
+         patch("src.gen_run.build_video_provider") as p_client, \
          patch("src.gen_run.synthesize") as p_synth:
         success, summary = run_generation(
             repo=repo, cfg=cfg, dry_run=False, openrouter_api_key="sk-test",
@@ -188,8 +188,9 @@ def test_gen_run_refuses_call_that_would_cross_weekly_ceiling(tmp_path):
     assert success is True
     assert summary.get("capped") is True
 
-    # Zero provider calls: the client is never even constructed, and
-    # generate_shots (which would call client.submit) is never invoked.
+    # Zero provider calls: the client is never even constructed (Issue 67 —
+    # build_video_provider is the config-driven seam), and generate_shots
+    # (which would call client.submit) is never invoked.
     p_client.assert_not_called()
     p_gen.assert_not_called()
     p_synth.assert_not_called()
@@ -226,7 +227,7 @@ def test_gen_run_allows_call_under_the_ceiling(tmp_path):
          patch("src.slot_planner.run_all", return_value=[]), \
          patch("src.retention.run_all", return_value=MagicMock()), \
          patch("src.gen_run.generate_shots", return_value=[fake_shot]) as p_gen, \
-         patch("src.gen_run.OpenRouterKlingClient") as p_client, \
+         patch("src.gen_run.build_video_provider") as p_client, \
          patch("src.gen_run.synthesize") as p_synth, \
          patch("src.gen_run.align", return_value=[]), \
          patch("src.gen_run.write_line_ass_file"), \
