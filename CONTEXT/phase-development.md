@@ -1,7 +1,7 @@
 # Phase: development
 **Project:** Media-Agent (Pivot.6)
 **Status:** in-progress
-**Last updated:** 2026-06-06 (issues-51-57-tdd)
+**Last updated:** 2026-07-28 (issues-59-69-parallel-delivery)
 
 ## Objective
 
@@ -82,6 +82,31 @@ Implement all 10 slices of the Pivot.6 AI-generated pipeline: RSS ingest → top
 - [issues-47-50-dashboard-v2-tdd](../.sessions/2026-06-01__issues-47-50-dashboard-v2-tdd/handoff.md) — 2026-06-01, dashboard v2
 - [issues-44-46-dashboard-tdd](.sessions/2026-05-31__issues-44-46-dashboard-tdd/handoff.md) — 2026-05-31, dashboard v1
 - [dashboard-startup-fix](.sessions/2026-05-31__dashboard-startup-fix/handoff.md) — 2026-05-31, legacy DB + thread fix
+- [issues-59-69-parallel-delivery](../.sessions/2026-07-28__issues-59-69-parallel-delivery/handoff.md) — 2026-07-28, resurrection + image-first, Issues 59–69 shipped
+
+## Accomplishments (2026-07-28 — resurrection + image-first, Issues 59–69)
+
+- [2026-07-28] **All 11 codeable issues of the resurrection PRD shipped** (59–69), delivered in 6
+  dependency-ordered waves of ≤3 parallel subagents with disjoint file lanes. Parent re-ran every
+  Verification-command after each agent's final edit. Suite: 920→**977 passed**, 19→**18 failed**,
+  zero new failures.
+- [2026-07-28] **The spend ledger was never written to.** `generate_shots` recorded `quota_usage`
+  only when `script_id` was truthy, so every cap read 0 and could never fire. Proven pre-existing
+  in a detached worktree at pristine `HEAD 7c0e246` *before* any edits, then fixed as a prerequisite
+  to the weekly ceiling. **Lesson: this project's caps must be verified against a populated ledger,
+  never assumed from config presence.**
+- [2026-07-28] Three "green tests, unmet acceptance criterion" gaps caught by reading code rather
+  than agent reports: (a) `auth_failed` existed only in a docstring — nothing caught
+  `OpenRouterAuthError`, so INV-12's run abort could never fire; (b) the 150¢ per-clip cap was
+  checked once before video and never across the combined video+still total; (c) the image-first
+  "flip" would have been cosmetic — the provider was hardcoded (`OpenRouterKlingClient` constructed
+  directly) and the cost projection pinned at Kling's 67¢, which post-switch would make the 800¢
+  weekly ceiling behave like ~260¢ and silently strangle throughput.
+- [2026-07-28] Runtime defaults now image-first: Seedance 2.0 Fast i2v + Nano Banana 2 stills,
+  provider built from config at `gen_run.py:445`, ~88¢/Clip, 5 Clips/week, 800¢ rolling ceiling.
+- [2026-07-28] Docs reconciled to reality across `CLAUDE.md`, `agents.md`, `skills.md`,
+  `CONTEXT/CONTEXT.md`, `CONTEXT/INDEX.md`, `progress.md` — **including** the unflattering truth
+  that `ai_video` shots are still text-to-video.
 
 ## Open Items
 
@@ -91,4 +116,17 @@ Implement all 10 slices of the Pivot.6 AI-generated pipeline: RSS ingest → top
 - [2026-05-28] **ADR-0004 hybrid live verify:** cost cap 250¢ (was 270); licensed fetch-and-cache resolver; sample clip uploaded (`qRdVYO1Tmfw`) but was ai_video-only, not hybrid.
 - Next: **Issue 29** T+1h ship gate **Thu 2026-06-04** on `NPFJiqmd4ro`; first scheduler weekly run Sun 2026-06-07 02:00 SGT.
 - Next grill after Slice 10 `[x]`: scripter quality (deferred from 2026-05-23 handoff).
+- [2026-07-28] **11 tickets sit in Debugger Ready, none independently graded.** Maker ≠ checker — the
+  parent that drove the coder agents is not a valid grader for them. Run `/part3` before treating
+  any of Issues 59–69 as Done.
+- [2026-07-28] **`ai_video` shots bypass the ADR-0009 ladder.** `route_shot` is built and tested but
+  appears nowhere in `gen_run.py`; `_generate_clip` still batches those shots to text-to-video.
+  Real-image shots *are* image-first. Needs a follow-up ticket (touches `ai_gen/runner.py`
+  concurrency + call-count assertions in `test_gen_run.py` / `test_hybrid_gen_run.py`).
+- [2026-07-28] **All OpenRouter wire schemas are unverified assumptions** — first-frame payload
+  (Kling + Seedance) and Nano Banana's `POST /api/v1/images` request/response shape are modelled on
+  the closest documented precedent and locked by tests, never exercised against the live API.
+  Issue 70's first billed run is where a wrong schema surfaces.
+- [2026-07-28] **Issue 70 blocked:** `.env` still holds the 12-char placeholder key (verified). Needs
+  a funded rotated key + explicit spend authority (≤150¢) + human review of the MP4.
 - [2026-06-06] **Issues 51–57:** daily `runs` row, retention basename sweep, dashboard basename match, next-run countdown, operator overrides (reschedule/edit-title, ADR-0007), Hermes consume-side (`directed` + narration branch, ADR-0008). Issue 58 HITL pending.
